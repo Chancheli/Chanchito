@@ -4,6 +4,30 @@ import sqlite3
 from datetime import datetime
 import time
 
+# --- ΡΥΘΜΙΣΗ ΚΩΔΙΚΟΥ ---
+MASTER_PASSWORD = "γουρουνακια3" # <-- Εδώ αλλάζεις τον κωδικό σου!
+
+st.set_page_config(page_title="Pro Home Budget", layout="wide")
+
+# --- LOGIN "ΠΟΡΤΑ" ---
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    st.title("🔒 Login Required")
+    pwd_input = st.text_input("Παρακαλώ εισάγετε τον κωδικό πρόσβασης:", type="password")
+    if st.button("Είσοδος"):
+        if pwd_input == MASTER_PASSWORD:
+            st.session_state["authenticated"] = True
+            st.success("Πρόσβαση επετράπη!")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.error("Λάθος κωδικός! Προσπαθήστε ξανά.")
+    st.stop() # Σταματάει την εκτέλεση της υπόλοιπης εφαρμογής
+
+# --- ΑΠΟ ΕΔΩ ΚΑΙ ΚΑΤΩ Ο ΚΩΔΙΚΑΣ ΤΡΕΧΕΙ ΜΟΝΟ ΑΝ Ο ΚΩΔΙΚΟΣ ΕΙΝΑΙ ΣΩΣΤΟΣ ---
+
 # --- DATABASE SETUP ---
 conn = sqlite3.connect('finance_home.db', check_same_thread=False)
 c = conn.cursor()
@@ -40,13 +64,16 @@ languages = {
     }
 }
 
-st.set_page_config(page_title="Pro Home Budget", layout="wide")
-
 # Επιλογή Γλώσσας στο Sidebar
 lang_choice = st.sidebar.selectbox("🌐 Language / Γλώσσα", list(languages.keys()))
 L = languages[lang_choice]
 
 st.title(L["title"])
+
+# Logout Button στο Sidebar
+if st.sidebar.button("Log Out"):
+    st.session_state["authenticated"] = False
+    st.rerun()
 
 ALL_CATEGORIES = ["Σούπερ Μάρκετ", "Φαγητό", "Καφές", "Missu", "Λογαριασμοί", "Ενοίκιο", "Διασκέδαση", "Σπίτι", "Υγεία", "Μεταφορικά", "Άλλο"]
 
@@ -88,8 +115,8 @@ elif choice in [L["inc"], L["exp"]]:
                       ("Income" if is_inc else "Expense", p, cat, amt, desc, str(d)))
             conn.commit()
             if is_inc:
-                st.balloons() # ΤΑ ΜΠΑΛΟΝΙΑ ΣΟΥ!
-                time.sleep(2) # Παύση για να τα δεις
+                st.balloons()
+                time.sleep(2)
             st.success(L["success_save"])
             time.sleep(1)
             st.rerun()
@@ -126,7 +153,6 @@ elif choice == L["hist"]:
 # --- ΣΤΟΧΟΙ & ΑΠΟΤΑΜΙΕΥΣΗ ---
 elif choice == L["goals"]:
     st.header(L["goals"])
-    # Μηνιαίος Στόχος
     with st.form("monthly_goal_form"):
         st.subheader(L["m_save_goal"])
         res = c.execute("SELECT amount FROM monthly_budget").fetchone()
@@ -137,28 +163,4 @@ elif choice == L["goals"]:
             c.execute("INSERT INTO monthly_budget (amount) VALUES (?)", (new_b,))
             conn.commit()
             st.success("Target Updated!")
-            st.rerun()
-
-    st.divider()
-    # Ειδικά Projects (π.χ. Ταξίδι)
-    with st.expander("🏝️ Add New Project"):
-        with st.form("project_form"):
-            g_name = st.text_input("Project Name")
-            g_amt = st.number_input("Target Amount (€)", min_value=0.0)
-            if st.form_submit_button("Add Project"):
-                c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (g_name, g_amt))
-                conn.commit()
-                st.rerun()
-
-    # Progress Bars
-    goals_df = pd.read_sql_query("SELECT * FROM goals", conn)
-    total_balance = df[df['type'] == 'Income']['amount'].sum() - df[df['type'] == 'Expense']['amount'].sum()
-    for _, g in goals_df.iterrows():
-        st.write(f"**{g['name']}**")
-        p = min(total_balance / g['target_amount'], 1.0) if g['target_amount'] > 0 else 0
-        st.progress(p)
-        st.write(f"{total_balance:,.2f}€ / {g['target_amount']:,.2f}€ ({p*100:.1f}%)")
-        if st.button("Remove", key=f"g_{g['id']}"):
-            c.execute("DELETE FROM goals WHERE id = ?", (g['id'],))
-            conn.commit()
             st.rerun()
