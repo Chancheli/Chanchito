@@ -1,4 +1,5 @@
 
+
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -25,7 +26,7 @@ if not st.session_state["authenticated"]:
             st.error("Λάθος κωδικός!")
     st.stop()
 
-# --- DATABASE ---
+# --- DATABASE SETUP ---
 conn = sqlite3.connect('finance_home.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS entries 
@@ -35,7 +36,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS goals
              (id INTEGER PRIMARY KEY, name TEXT, target_amount REAL)''')
 conn.commit()
 
-# --- SIDEBAR ---
+# --- SIDEBAR MENU ---
 st.sidebar.title(f"🐷 Chanchito Menu")
 choice = st.sidebar.selectbox("Επιλογή", ["Κεντρική", "Έσοδα", "Έξοδα", "Ιστορικό", "🎯 Στόχοι"])
 
@@ -48,89 +49,70 @@ df = pd.read_sql_query("SELECT * FROM entries", conn)
 if not df.empty:
     df['date'] = pd.to_datetime(df['date'])
 
-# --- ΣΕΛΙΔΕΣ ---
-
-# 1. ΚΕΝΤΡΙΚΗ (DASHBOARD) - ΕΔΩ ΕΙΝΑΙ ΟΙ ΠΙΤΕΣ ΣΟΥ!
+# --- 1. ΚΕΝΤΡΙΚΗ (DASHBOARD) ---
 if choice == "Κεντρική":
     st.title("📊 Η Οικονομία μας")
     if not df.empty:
         total_inc = df[df['type'] == 'Income']['amount'].sum()
         total_exp = df[df['type'] == 'Expense']['amount'].sum()
+        balance = total_inc - total_exp
         
         col1, col2, col3 = st.columns(3)
         col1.metric("Συνολικά Έσοδα", f"{total_inc:,.2f} €")
         col2.metric("Συνολικά Έξοδα", f"{total_exp:,.2f} €")
-        col3.metric("Διαθέσιμο Υπόλοιπο", f"{(total_inc - total_exp):,.2f} €", delta_color="normal")
+        col3.metric("Πραγματικό Υπόλοιπο", f"{balance:,.2f} €")
         
         st.divider()
         
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("Πού πάνε τα λεφτά; (Έξοδα)")
-            exp_df = df[df['type'] == 'Expense'].groupby('category')['amount'].sum().reset_index()
-            st.pie_chart(data=exp_df, values='amount', names='category')
+            st.subheader("Πού πάνε τα λεφτά;")
+            exp_only = df[df['type'] == 'Expense']
+            if not exp_only.empty:
+                exp_df = exp_only.groupby('category')['amount'].sum().reset_index()
+                st.write("Πίτα Εξόδων")
+                st.vega_lite_chart(exp_df, {
+                    'mark': {'type': 'arc', 'innerRadius': 50},
+                    'encoding': {
+                        'theta': {'field': 'amount', 'type': 'quantitative'},
+                        'color': {'field': 'category', 'type': 'nominal'},
+                    }
+                })
         with c2:
-            st.subheader("Ποιος ξοδεύει πιο πολύ;")
-            person_df = df[df['type'] == 'Expense'].groupby('person')['amount'].sum().reset_index()
-            st.bar_chart(data=person_df, x='person', y='amount')
+            st.subheader("Έσοδα vs Έξοδα ανά Άτομο")
+            person_df = df.groupby(['person', 'type'])['amount'].sum().unstack().fillna(0)
+            st.bar_chart(person_df)
     else:
-        st.info("Δεν υπάρχουν δεδομένα ακόμα. Ξεκίνα τις καταχωρήσεις!")
+        st.info("Δεν υπάρχουν δεδομένα. Ξεκίνα να καταγράφεις!")
 
-# 2. ΕΣΟΔΑ (Με περισσότερα μπαλόνια!)
+# --- 2. ΕΣΟΔΑ ---
 elif choice == "Έσοδα":
     st.header("💰 Προσθήκη Εσόδου")
     with st.form("inc_form"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["Μισθός", "Ενοίκιο", "Άλλο"])
-        amt = st.number_input("Ποσό (€)", min_value=0.0)
+        # Εδώ επιτρέπουμε δεκαδικά με τελεία
+        amt = st.number_input("Ποσό (€) - Χρησιμοποίησε τελεία για δεκαδικά", min_value=0.0, step=0.01, format="%.2f")
         desc = st.text_input("Περιγραφή")
         if st.form_submit_button("Αποθήκευση"):
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
                       ("Income", p, cat, amt, desc, str(datetime.now().date())))
             conn.commit()
-            # Πολλά μπαλόνια για να τα προλάβεις!
-            for i in range(3):
+            # Πολλά μπαλόνια!
+            for _ in range(3):
                 st.balloons()
-                time.sleep(0.5)
-            st.success("Το χρήμα έρρευσε!")
+                time.sleep(0.3)
+            st.success("Έγινε η καταχώρηση!")
             time.sleep(1)
             st.rerun()
 
-# 3. ΙΣΤΟΡΙΚΟ (ΕΔΩ ΘΑ ΣΒΗΣΕΙΣ ΤΟ ΛΑΘΟΣ)
-elif choice == "Ιστορικό":
-    st.header("📜 Ιστορικό Κινήσεων")
-    if not df.empty:
-        # Ταξινόμηση από το πιο πρόσφατο
-        sorted_df = df.sort_values(by='date', ascending=False)
-        for idx, row in sorted_df.iterrows():
-            with st.container():
-                col_a, col_b = st.columns([0.85, 0.15])
-                icon = "🟢" if row['type'] == 'Income' else "🔴"
-                col_a.write(f"{icon} **{row['amount']:.2f}€** | {row['category']} ({row['person']}) - {row['source_desc']}")
-                # ΚΟΥΜΠΙ ΔΙΑΓΡΑΦΗΣ
-                if col_b.button("🗑️", key=f"del_{row['id']}"):
-                    c.execute("DELETE FROM entries WHERE id=?", (row['id'],))
-                    conn.commit()
-                    st.warning("Η εγγραφή διαγράφηκε!")
-                    time.sleep(1)
-                    st.rerun()
-                st.divider()
-    else:
-        st.info("Το ιστορικό είναι άδειο.")
-
-# (Οι άλλες σελίδες Έξοδα & Στόχοι παραμένουν ίδιες)
+# --- 3. ΕΞΟΔΑ ---
 elif choice == "Έξοδα":
     st.header("💸 Καταγραφή Εξόδου")
     with st.form("exp_form"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["Σούπερ Μάρκετ", "Φαγητό", "Λογαριασμοί", "Ενοίκιο", "Διασκέδαση", "Σπίτι", "Υγεία", "Άλλο"])
-        amt = st.number_input("Ποσό (€)", min_value=0.0)
+        amt = st.number_input("Ποσό (€)", min_value=0.0, step=0.01, format="%.2f")
         desc = st.text_input("Περιγραφή")
         if st.form_submit_button("Καταχώρηση"):
-            c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
-                      ("Expense", p, cat, amt, desc, str(datetime.now().date())))
-            conn.commit()
-            st.rerun()
-
-elif choice == "🎯 Στόχοι":
-    st.info("Εδώ θα βλέπεις αν βγαίνει ο προϋπολογισμός σου!")
+            c.execute("INSERT INTO entries (type, person, category
