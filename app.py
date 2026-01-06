@@ -41,7 +41,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS common_products
              (id INTEGER PRIMARY KEY, name TEXT, store TEXT)''')
 conn.commit()
 
-# --- TRANSLATIONS DICTIONARY ---
+# --- TRANSLATIONS ---
 lang_choice = st.sidebar.radio("Language / Idioma", ["🇬🇷 Ελληνικά", "🇪🇸 Español", "🇬🇧 English"])
 
 t = {
@@ -57,13 +57,16 @@ t = {
         "save": "Αποθήκευση",
         "person": "Ποιος;",
         "cat": "Κατηγορία",
-        "who_asked": "Ποιος το ζήτησε;",
         "store": "Κατάστημα",
         "add_goal": "Προσθήκη Νέου Στόχου",
-        "goal_name": "Όνομα Στόχου (π.χ. Ταξίδι)",
+        "goal_name": "Όνομα Στόχου",
         "goal_amt": "Ποσό Στόχου (€)",
         "quick_add": "⚡ Γρήγορη Προσθήκη",
-        "missu_cat": "🐾 Missu"
+        "missu_cat": "🐾 Missu",
+        "export": "📥 Λήψη σε Excel",
+        "monthly_report": "📅 Μηνιαία Αναφορά Εξόδων",
+        "month": "Μήνας",
+        "total": "Σύνολο"
     },
     "🇪🇸 Español": {
         "menu": ["Panel", "Ingresos", "Gastos", "🛒 Supermercado", "Historial", "🎯 Objetivos"],
@@ -77,13 +80,16 @@ t = {
         "save": "Guardar",
         "person": "¿Quién?",
         "cat": "Categoría",
-        "who_asked": "¿Quién lo pidió?",
         "store": "Tienda",
         "add_goal": "Añadir Nuevo Objetivo",
         "goal_name": "Nombre del Objetivo",
         "goal_amt": "Cantidad Meta (€)",
         "quick_add": "⚡ Añadir Rápido",
-        "missu_cat": "🐾 Missu"
+        "missu_cat": "🐾 Missu",
+        "export": "📥 Descargar Excel",
+        "monthly_report": "📅 Informe Mensual de Gastos",
+        "month": "Mes",
+        "total": "Total"
     },
     "🇬🇧 English": {
         "menu": ["Dashboard", "Income", "Expenses", "🛒 Shopping List", "History", "🎯 Goals"],
@@ -97,13 +103,16 @@ t = {
         "save": "Save",
         "person": "Who?",
         "cat": "Category",
-        "who_asked": "Who asked?",
         "store": "Store",
         "add_goal": "Add New Goal",
         "goal_name": "Goal Name",
         "goal_amt": "Target Amount (€)",
         "quick_add": "⚡ Quick Add",
-        "missu_cat": "🐾 Missu"
+        "missu_cat": "🐾 Missu",
+        "export": "📥 Download Excel",
+        "monthly_report": "📅 Monthly Expense Report",
+        "month": "Month",
+        "total": "Total"
     }
 }
 
@@ -116,6 +125,13 @@ def image_to_base64(image):
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode()
 
+def to_excel(df):
+    output = BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    df.to_excel(writer, index=False, sheet_name='Entries')
+    writer.close()
+    return output.getvalue()
+
 df = pd.read_sql_query("SELECT * FROM entries", conn)
 
 # --- 1. DASHBOARD ---
@@ -123,17 +139,34 @@ if choice in ["Κεντρική", "Panel", "Dashboard"]:
     st.title(choice)
     if not df.empty:
         df['amount'] = pd.to_numeric(df['amount'])
+        df['date'] = pd.to_datetime(df['date'])
+        
         t_inc = df[df['type'] == 'Income']['amount'].sum()
         t_exp = df[df['type'] == 'Expense']['amount'].sum()
+        
         c1, c2, c3 = st.columns(3)
         c1.metric(curr_t["menu"][1], f"{t_inc:,.2f} €")
         c2.metric(curr_t["menu"][2], f"{t_exp:,.2f} €")
         c3.metric("Balance", f"{(t_inc - t_exp):,.2f} €")
+        
         st.divider()
-        exp_only = df[df['type'] == 'Expense']
-        if not exp_only.empty:
-            exp_df = exp_only.groupby('category')['amount'].sum().reset_index()
-            st.bar_chart(data=exp_df, x='category', y='amount')
+        
+        # MONTHLY REPORT SECTION
+        st.subheader(curr_t["monthly_report"])
+        exp_df_all = df[df['type'] == 'Expense'].copy()
+        if not exp_df_all.empty:
+            exp_df_all['month_year'] = exp_df_all['date'].dt.strftime('%Y-%m')
+            monthly_summary = exp_df_all.groupby('month_year')['amount'].sum().reset_index()
+            monthly_summary.columns = [curr_t["month"], curr_t["total"]]
+            st.table(monthly_summary)
+            
+            st.subheader(curr_t["cat"])
+            cat_df = exp_df_all.groupby('category')['amount'].sum().reset_index()
+            st.bar_chart(data=cat_df, x='category', y='amount')
+        
+        st.download_button(label=curr_t["export"], data=to_excel(df), file_name="finances.xlsx")
+    else:
+        st.info("No data available.")
 
 # --- 2. INCOME ---
 elif choice == curr_t["menu"][1]:
@@ -216,8 +249,6 @@ elif choice == curr_t["menu"][4]:
 # --- 6. GOALS ---
 elif choice == curr_t["menu"][5]:
     st.header(curr_t["goals_title"])
-    
-    # ΦΟΡΜΑ ΠΡΟΣΘΗΚΗΣ ΣΤΟΧΟΥ
     with st.form("new_goal_form"):
         st.subheader(curr_t["add_goal"])
         g_name = st.text_input(curr_t["goal_name"])
@@ -226,15 +257,11 @@ elif choice == curr_t["menu"][5]:
             if g_name and g_target > 0:
                 c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (g_name, g_target))
                 conn.commit(); st.success("Goal added!"); st.rerun()
-
     st.divider()
-    
-    # ΕΜΦΑΝΙΣΗ ΣΤΟΧΩΝ
     total_inc = df[df['type'] == 'Income']['amount'].sum()
     total_exp = df[df['type'] == 'Expense']['amount'].sum()
     savings = total_inc - total_exp
     st.metric("Total Savings", f"{savings:,.2f} €")
-    
     goals_list = c.execute("SELECT * FROM goals").fetchall()
     for gid, name, target in goals_list:
         st.write(f"**{name}**")
