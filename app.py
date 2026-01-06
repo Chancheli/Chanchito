@@ -44,7 +44,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS reminders
              (id INTEGER PRIMARY KEY, title TEXT, due_date TEXT, status TEXT)''')
 conn.commit()
 
-# --- TRANSLATIONS ---
+# --- TRANSLATIONS (Διορθωμένο με όλα τα κλειδιά) ---
 lang_choice = st.sidebar.radio("Language / Idioma", ["🇬🇷 Ελληνικά", "🇪🇸 Español", "🇬🇧 English"])
 
 t = {
@@ -74,6 +74,9 @@ t = {
         "from": "Από",
         "to": "Έως",
         "balance": "Υπόλοιπο",
+        "month": "Μήνας",
+        "total": "Σύνολο",
+        "due": "Λήγει στις",
         "inc_cats": ["Μισθός", "Ενοίκιο", "Άλλο"],
         "exp_cats": ["🐾 Missu", "Σούπερ Μάρκετ", "Φαγητό", "Λογαριασμοί", "Ενοίκιο", "Διασκέδαση", "Σπίτι", "Υγεία", "Άλλο"]
     },
@@ -103,6 +106,9 @@ t = {
         "from": "Desde",
         "to": "Hasta",
         "balance": "Saldo",
+        "month": "Mes",
+        "total": "Total",
+        "due": "Vence el",
         "inc_cats": ["Salario", "Alquiler", "Otro"],
         "exp_cats": ["🐾 Missu", "Supermercado", "Comida", "Facturas", "Alquiler", "Entretenimiento", "Hogar", "Salud", "Otro"]
     },
@@ -132,6 +138,9 @@ t = {
         "from": "From",
         "to": "To",
         "balance": "Balance",
+        "month": "Month",
+        "total": "Total",
+        "due": "Due on",
         "inc_cats": ["Salary", "Rent", "Other"],
         "exp_cats": ["🐾 Missu", "Supermarket", "Food", "Bills", "Rent", "Entertainment", "Home", "Health", "Other"]
     }
@@ -163,9 +172,9 @@ def to_excel(df):
 # Φόρτωση δεδομένων
 df_raw = pd.read_sql_query("SELECT * FROM entries", conn)
 if not df_raw.empty:
-    df_raw['date'] = pd.to_datetime(df_raw['date']).dt.date
+    df_raw['date_dt'] = pd.to_datetime(df_raw['date']).dt.date
     # Φιλτράρισμα βάσει ημερομηνίας
-    df = df_raw[(df_raw['date'] >= d_from) & (df_raw['date'] <= d_to)].copy()
+    df = df_raw[(df_raw['date_dt'] >= d_from) & (df_raw['date_dt'] <= d_to)].copy()
 else:
     df = df_raw.copy()
 
@@ -204,14 +213,15 @@ if choice in ["Κεντρική", "Panel", "Dashboard"]:
         # Μηνιαία Αναφορά (Table)
         st.subheader(curr_t["monthly_report"])
         if not exp_df.empty:
-            exp_df['month'] = pd.to_datetime(exp_df['date']).dt.strftime('%Y-%m')
-            summary = exp_df.groupby('month')['amount'].sum().reset_index()
+            exp_df['month_key'] = pd.to_datetime(exp_df['date']).dt.strftime('%Y-%m')
+            summary = exp_df.groupby('month_key')['amount'].sum().reset_index()
+            # ΔΙΟΡΘΩΣΗ: Χρήση των σωστών κλειδιών για να μην έχουμε KeyError
             summary.columns = [curr_t['month'], curr_t['total']]
             st.dataframe(summary, use_container_width=True, hide_index=True)
 
         st.download_button(label=curr_t["export"], data=to_excel(df), file_name=f"chanchito_{d_from}_to_{d_to}.xlsx")
     else:
-        st.info("No data for this period.")
+        st.info("No data available.")
 
 # --- 2. INCOME ---
 elif choice == curr_t["menu"][1]:
@@ -225,7 +235,8 @@ elif choice == curr_t["menu"][1]:
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
                       ("Income", p, cat, amt, desc, str(datetime.now().date())))
             conn.commit()
-            st.balloons() #🎈 ΕΠΕΣΤΡΕΨΑΝ!
+            st.balloons() # 🎈 ΤΑ ΜΠΑΛΟΝΙΑ ΣΟΥ!
+            time.sleep(1)
             st.rerun()
 
 # --- 3. EXPENSES ---
@@ -283,7 +294,6 @@ elif choice == curr_t["menu"][3]:
 # --- 5. HISTORY ---
 elif choice == curr_t["menu"][4]:
     st.header(curr_t["history_title"])
-    # Εδώ βλέπουμε το φιλτραρισμένο ιστορικό
     for idx, row in df.sort_values('id', ascending=False).iterrows():
         with st.expander(f"{row['date']} | {row['amount']:.2f}€ | {row['category']}"):
             if row['receipt']: st.image(base64.b64decode(row['receipt']))
@@ -300,7 +310,6 @@ elif choice == curr_t["menu"][5]:
             c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (n, a))
             conn.commit(); st.rerun()
     st.divider()
-    # Υπολογισμός αποταμίευσης από ΟΛΑ τα δεδομένα (όχι μόνο το φίλτρο)
     all_inc = df_raw[df_raw['type'] == 'Income']['amount'].sum()
     all_exp = df_raw[df_raw['type'] == 'Expense']['amount'].sum()
     savings = all_inc - all_exp
@@ -326,4 +335,7 @@ elif choice == curr_t["menu"][6]:
         c2.write("🔴" if r_stat == "Pending" else "🟢")
         if c3.button("✅", key=f"r_{rid}"):
             c.execute("UPDATE reminders SET status='Paid' WHERE id=?", (rid,))
+            conn.commit(); st.rerun()
+        if c3.button("🗑️", key=f"del_rem_{rid}"):
+            c.execute("DELETE FROM reminders WHERE id=?", (rid,))
             conn.commit(); st.rerun()
