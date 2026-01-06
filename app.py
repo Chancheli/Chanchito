@@ -43,7 +43,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS reminders
              (id INTEGER PRIMARY KEY, title TEXT, due_date TEXT, status TEXT)''')
 conn.commit()
 
-# --- TRANSLATIONS DICTIONARY ---
+# --- TRANSLATIONS (Εδώ διορθώθηκαν οι κατηγορίες!) ---
 lang_choice = st.sidebar.radio("Language / Idioma", ["🇬🇷 Ελληνικά", "🇪🇸 Español", "🇬🇧 English"])
 
 t = {
@@ -72,7 +72,9 @@ t = {
         "total": "Σύνολο",
         "due": "Λήγει στις",
         "status": "Κατάσταση",
-        "balance": "Υπόλοιπο"
+        "balance": "Υπόλοιπο",
+        "inc_cats": ["Μισθός", "Ενοίκιο", "Άλλο"],
+        "exp_cats": ["🐾 Missu", "Σούπερ Μάρκετ", "Φαγητό", "Λογαριασμοί", "Ενοίκιο", "Διασκέδαση", "Σπίτι", "Υγεία", "Άλλο"]
     },
     "🇪🇸 Español": {
         "menu": ["Panel", "Ingresos", "Gastos", "🛒 Supermercado", "Historial", "🎯 Objetivos", "🔔 Recordatorios"],
@@ -99,7 +101,9 @@ t = {
         "total": "Total",
         "due": "Vence el",
         "status": "Estado",
-        "balance": "Saldo"
+        "balance": "Saldo",
+        "inc_cats": ["Salario", "Alquiler", "Otro"],
+        "exp_cats": ["🐾 Missu", "Supermercado", "Comida", "Facturas", "Alquiler", "Entretenimiento", "Hogar", "Salud", "Otro"]
     },
     "🇬🇧 English": {
         "menu": ["Dashboard", "Income", "Expenses", "🛒 Shopping List", "History", "🎯 Goals", "🔔 Reminders"],
@@ -126,7 +130,9 @@ t = {
         "total": "Total",
         "due": "Due on",
         "status": "Status",
-        "balance": "Balance"
+        "balance": "Balance",
+        "inc_cats": ["Salary", "Rent", "Other"],
+        "exp_cats": ["🐾 Missu", "Supermarket", "Food", "Bills", "Rent", "Entertainment", "Home", "Health", "Other"]
     }
 }
 
@@ -152,7 +158,7 @@ df = pd.read_sql_query("SELECT * FROM entries", conn)
 if choice in ["Κεντρική", "Panel", "Dashboard"]:
     st.title(choice)
     
-    # Reminders Alert
+    # Alert για ληξιπρόθεσμα
     today = date.today()
     pending = c.execute("SELECT title, due_date FROM reminders WHERE status='Pending'").fetchall()
     for tit, d_date in pending:
@@ -189,22 +195,20 @@ elif choice == curr_t["menu"][1]:
     st.header(curr_t["income_title"])
     with st.form("inc_form"):
         p = st.selectbox(curr_t["person"], ["Άις", "Κωνσταντίνος"])
-        cat = st.selectbox(curr_t["cat"], ["Salary", "Rent", "Other"])
+        cat = st.selectbox(curr_t["cat"], curr_t["inc_cats"])
         amt = st.number_input(curr_t["amount"], min_value=0.0, step=0.01)
         desc = st.text_input(curr_t["desc"])
         if st.form_submit_button(curr_t["save"]):
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
                       ("Income", p, cat, amt, desc, str(datetime.now().date())))
-            conn.commit()
-            st.balloons() # FUN! 🎈
-            st.rerun()
+            conn.commit(); st.balloons(); st.rerun()
 
 # --- 3. EXPENSES ---
 elif choice == curr_t["menu"][2]:
     st.header(curr_t["expense_title"])
     with st.form("exp_form"):
         p = st.selectbox(curr_t["person"], ["Άις", "Κωνσταντίνος"])
-        cat = st.selectbox(curr_t["cat"], [curr_t["missu_cat"], "Supermarket", "Food", "Bills", "Rent", "Entertainment", "Home", "Health", "Other"])
+        cat = st.selectbox(curr_t["cat"], curr_t["exp_cats"])
         amt = st.number_input(curr_t["amount"], min_value=0.0, step=0.01)
         desc = st.text_input(curr_t["desc"])
         uploaded_file = st.file_uploader("Receipt Photo", type=['jpg', 'jpeg', 'png'])
@@ -216,10 +220,7 @@ elif choice == curr_t["menu"][2]:
                 img_str = image_to_base64(img)
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date, receipt) VALUES (?,?,?,?,?,?,?)",
                       ("Expense", p, cat, amt, desc, str(datetime.now().date()), img_str))
-            conn.commit()
-            st.success("OK!")
-            time.sleep(0.5)
-            st.rerun()
+            conn.commit(); st.success("OK!"); time.sleep(0.5); st.rerun()
 
 # --- 4. SHOPPING LIST ---
 elif choice == curr_t["menu"][3]:
@@ -267,4 +268,51 @@ elif choice == curr_t["menu"][4]:
                 c.execute("DELETE FROM entries WHERE id=?", (row['id'],))
                 conn.commit(); st.rerun()
 
-# ---
+# --- 6. GOALS ---
+elif choice == curr_t["menu"][5]:
+    st.header(curr_t["goals_title"])
+    with st.form("new_goal_form"):
+        st.subheader(curr_t["add_goal"])
+        g_name = st.text_input(curr_t["goal_name"])
+        g_target = st.number_input(curr_t["goal_amt"], min_value=0.0)
+        if st.form_submit_button(curr_t["save"]):
+            if g_name and g_target > 0:
+                c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (g_name, g_target))
+                conn.commit(); st.success("Goal added!"); st.rerun()
+    st.divider()
+    total_inc = df[df['type'] == 'Income']['amount'].sum()
+    total_exp = df[df['type'] == 'Expense']['amount'].sum()
+    savings = total_inc - total_exp
+    st.metric(curr_t["balance"], f"{savings:,.2f} €")
+    goals_list = c.execute("SELECT * FROM goals").fetchall()
+    for gid, name, target in goals_list:
+        st.write(f"**{name}**")
+        prog = min(savings / target, 1.0) if target > 0 else 0
+        st.progress(prog)
+        st.write(f"{savings:,.2f} / {target:,.2f} € ({(prog*100):.1f}%)")
+        if st.button(f"🗑️ Delete {name}", key=f"dg_{gid}"):
+            c.execute("DELETE FROM goals WHERE id=?", (gid,))
+            conn.commit(); st.rerun()
+
+# --- 7. REMINDERS ---
+elif choice == curr_t["menu"][6]:
+    st.header(curr_t["reminders_title"])
+    with st.form("reminder_form"):
+        r_title = st.text_input(curr_t["desc"])
+        r_date = st.date_input(curr_t["due"])
+        if st.form_submit_button(curr_t["save"]):
+            c.execute("INSERT INTO reminders (title, due_date, status) VALUES (?,?,?)", (r_title, str(r_date), "Pending"))
+            conn.commit(); st.rerun()
+    st.divider()
+    rems = c.execute("SELECT * FROM reminders ORDER BY due_date ASC").fetchall()
+    for rid, r_tit, r_d, r_stat in rems:
+        col1, col2, col3 = st.columns([0.6, 0.2, 0.2])
+        col1.write(f"🔔 **{r_tit}** - {r_d}")
+        status_color = "🔴" if r_stat == "Pending" else "🟢"
+        col2.write(f"{status_color} {r_stat}")
+        if col3.button("✅ Done", key=f"rem_{rid}"):
+            c.execute("UPDATE reminders SET status='Paid' WHERE id=?", (rid,))
+            conn.commit(); st.rerun()
+        if col3.button("🗑️", key=f"del_rem_{rid}"):
+            c.execute("DELETE FROM reminders WHERE id=?", (rid,))
+            conn.commit(); st.rerun()
