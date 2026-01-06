@@ -21,20 +21,20 @@ st.markdown("""
     .metric-card {
         background: rgba(255, 255, 255, 0.05);
         border-radius: 15px;
-        padding: 15px;
+        padding: 20px;
         border: 1px solid rgba(255, 255, 255, 0.1);
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         text-align: center;
-        margin-bottom: 10px;
+        margin-bottom: 15px;
     }
-    .metric-label { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
-    .metric-value { font-size: 24px; font-weight: bold; }
-    .stButton>button { border-radius: 12px; transition: 0.3s; font-weight: bold; width: 100%; }
+    .metric-label { font-size: 18px; font-weight: bold; margin-bottom: 8px; }
+    .metric-value { font-size: 28px; font-weight: bold; }
+    .stButton>button { border-radius: 12px; transition: 0.3s; font-weight: bold; width: 100%; height: 3em; }
+    .stDataFrame { border-radius: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- FUNCTIONS ---
-@st.cache_data
 def load_lottieurl(url: str):
     try:
         r = requests.get(url)
@@ -54,9 +54,9 @@ def to_excel(df):
     writer.close()
     return output.getvalue()
 
-# Load Animations
-lottie_piggy = load_lottieurl("https://assets10.lottiefiles.com/packages/lf20_57pgbi7a.json")
-lottie_success = load_lottieurl("https://assets9.lottiefiles.com/packages/lf20_pqnfmone.json")
+# Load Animations (Updated URLs)
+lottie_piggy = load_lottieurl("https://lottie.host/808f9037-3705-4752-9721-3f8d394e246a/v9o3p3E59k.json") 
+lottie_success = load_lottieurl("https://lottie.host/c5c16265-d0c3-4f90-8451-8e01933f728c/7VnS5vO9fB.json")
 
 # --- LOGIN ---
 if "authenticated" not in st.session_state:
@@ -88,35 +88,35 @@ lang_choice = st.sidebar.radio("Language / Idioma", ["🇬🇷 Ελληνικά"
 t = {
     "🇬🇷 Ελληνικά": {
         "menu": ["Κεντρική", "Έσοδα", "Έξοδα", "🛒 Σούπερ Μάρκετ", "Ιστορικό", "🎯 Στόχοι", "🔔 Υπενθυμίσεις"],
-        "income": "Έσοδα", "expense": "Έξοδα", "balance": "Υπόλοιπο",
-        "save": "Αποθήκευση", "person": "Ποιος;", "cat": "Κατηγορία", "amount": "Ποσό (€)", "desc": "Περιγραφή",
+        "income": "Έσοδα", "expense": "Έξοδα", "balance": "Υπόλοιπο", "report": "📅 Μηνιαία Αναφορά Εξόδων",
+        "month": "Μήνας", "total": "Σύνολο", "save": "Αποθήκευση", "person": "Ποιος;", "cat": "Κατηγορία", "amount": "Ποσό (€)",
         "inc_cats": ["Μισθός", "Ενοίκιο", "Άλλο"],
         "exp_cats": ["🐾 Missu", "Σούπερ Μάρκετ", "Φαγητό", "Λογαριασμοί", "Ενοίκιο", "Διασκέδαση", "Σπίτι", "Υγεία", "Άλλο"]
     },
     "🇪🇸 Español": {
         "menu": ["Panel", "Ingresos", "Gastos", "🛒 Supermercado", "Historial", "🎯 Objetivos", "🔔 Recordatorios"],
-        "income": "Ingresos", "expense": "Gastos", "balance": "Saldo",
-        "save": "Guardar", "person": "¿Quién?", "cat": "Categoría", "amount": "Cantidad (€)", "desc": "Descripción",
+        "income": "Ingresos", "expense": "Gastos", "balance": "Saldo", "report": "📅 Informe Mensual",
+        "month": "Mes", "total": "Total", "save": "Guardar", "person": "¿Quién?", "cat": "Categoría", "amount": "Cantidad (€)",
         "inc_cats": ["Salario", "Alquiler", "Otro"],
         "exp_cats": ["🐾 Missu", "Supermercado", "Comida", "Facturas", "Hogar", "Salud", "Otro"]
     },
     "🇬Β English": {
         "menu": ["Dashboard", "Income", "Expenses", "🛒 Shopping", "History", "🎯 Goals", "🔔 Reminders"],
-        "income": "Income", "expense": "Expenses", "balance": "Balance",
-        "save": "Save", "person": "Who?", "cat": "Category", "amount": "Amount (€)", "desc": "Description",
+        "income": "Income", "expense": "Expenses", "balance": "Balance", "report": "📅 Monthly Report",
+        "month": "Month", "total": "Total", "save": "Save", "person": "Who?", "cat": "Category", "amount": "Amount (€)",
         "inc_cats": ["Salary", "Rent", "Other"],
         "exp_cats": ["🐾 Missu", "Market", "Food", "Bills", "Home", "Health", "Other"]
     }
 }
 curr_t = t[lang_choice]
 
-# Sidebar Filters
+# Sidebar
 st.sidebar.divider()
 d_from = st.sidebar.date_input("From / Από", value=date(2026, 1, 1))
 d_to = st.sidebar.date_input("To / Έως", value=date.today())
 choice = st.sidebar.selectbox("Menu", curr_t["menu"])
 
-# Data Loading
+# Data
 df_raw = pd.read_sql_query("SELECT * FROM entries", conn)
 if not df_raw.empty:
     df_raw['date_dt'] = pd.to_datetime(df_raw['date']).dt.date
@@ -126,10 +126,11 @@ else:
 
 # --- 1. DASHBOARD ---
 if choice in ["Κεντρική", "Panel", "Dashboard"]:
-    col_pig, col_tit = st.columns([1, 5])
-    with col_pig:
-        if lottie_piggy: st_lottie(lottie_piggy, height=100, key="pig")
-    with col_tit: st.title(choice)
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if lottie_piggy: st_lottie(lottie_piggy, height=120, key="piggy")
+    with col2:
+        st.title(choice)
     
     if not df.empty:
         df['amount'] = pd.to_numeric(df['amount'])
@@ -142,12 +143,23 @@ if choice in ["Κεντρική", "Panel", "Dashboard"]:
         c3.markdown(f'<div class="metric-card"><div class="metric-label" style="color:#2196F3">💎 {curr_t["balance"]}</div><div class="metric-value">{(t_inc - t_exp):,.2f} €</div></div>', unsafe_allow_html=True)
         
         st.divider()
-        exp_df = df[df['type'] == 'Expense']
+        exp_df = df[df['type'] == 'Expense'].copy()
         if not exp_df.empty:
+            # Monthly Report Table
+            st.subheader(curr_t["report"])
+            exp_df['month_key'] = pd.to_datetime(exp_df['date']).dt.strftime('%Y-%m')
+            summary = exp_df.groupby('month_key')['amount'].sum().reset_index()
+            summary.columns = [curr_t['month'], curr_t['total']]
+            st.dataframe(summary, use_container_width=True, hide_index=True)
+            
+            st.divider()
+            # Distribution Chart
             fig = px.pie(exp_df, values='amount', names='category', hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
             st.plotly_chart(fig, use_container_width=True)
+            
         st.download_button("📥 Excel", data=to_excel(df), file_name="finances.xlsx")
-    else: st.info("No data available.")
+    else:
+        st.info("No data available.")
 
 # --- 2. INCOME ---
 elif choice == curr_t["menu"][1]:
@@ -156,12 +168,13 @@ elif choice == curr_t["menu"][1]:
         p = st.selectbox(curr_t["person"], ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox(curr_t["cat"], curr_t["inc_cats"])
         amt = st.number_input(curr_t["amount"], min_value=0.0, step=0.01)
-        desc = st.text_input(curr_t["desc"])
+        desc = st.text_input("Περιγραφή / Desc")
         if st.form_submit_button(curr_t["save"]):
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)", ("Income", p, cat, amt, desc, str(date.today())))
             conn.commit()
-            if lottie_success: st_lottie(lottie_success, height=150, key="succ")
-            st.balloons(); time.sleep(1); st.rerun()
+            if lottie_success: st_lottie(lottie_success, height=200, key="success_inc")
+            st.balloons()
+            time.sleep(1.5); st.rerun()
 
 # --- 3. EXPENSES ---
 elif choice == curr_t["menu"][2]:
@@ -170,7 +183,7 @@ elif choice == curr_t["menu"][2]:
         p = st.selectbox(curr_t["person"], ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox(curr_t["cat"], curr_t["exp_cats"])
         amt = st.number_input(curr_t["amount"], min_value=0.0, step=0.01)
-        desc = st.text_input(curr_t["desc"])
+        desc = st.text_input("Περιγραφή / Desc")
         up = st.file_uploader("Receipt", type=['jpg', 'png'])
         if st.form_submit_button(curr_t["save"]):
             img_s = ""
@@ -225,22 +238,4 @@ elif choice == curr_t["menu"][5]:
     sav = df_raw[df_raw['type'] == 'Income']['amount'].sum() - df_raw[df_raw['type'] == 'Expense']['amount'].sum()
     for gid, gn, gt in c.execute("SELECT * FROM goals").fetchall():
         st.write(f"**{gn}** ({sav:,.2f}/{gt:,.2f}€)")
-        st.progress(min(sav/gt, 1.0) if gt>0 else 0)
-        if st.button("🗑️", key=f"dg_{gid}"):
-            c.execute("DELETE FROM goals WHERE id=?", (gid,)); conn.commit(); st.rerun()
-
-# --- 7. REMINDERS ---
-elif choice == curr_t["menu"][6]:
-    st.header(curr_t["menu"][6])
-    with st.form("r_f"):
-        rt, rd = st.text_input("Title"), st.date_input("Due Date")
-        if st.form_submit_button("Add"):
-            c.execute("INSERT INTO reminders (title, due_date, status) VALUES (?,?,?)", (rt, str(rd), "Pending")); conn.commit(); st.rerun()
-    for rid, rit, rid_d, ris in c.execute("SELECT * FROM reminders ORDER BY due_date ASC").fetchall():
-        c1, c2, c3 = st.columns([0.6, 0.2, 0.2])
-        c1.write(f"🔔 {rit} - {rid_d}")
-        c2.write("🔴" if ris == "Pending" else "🟢")
-        if c3.button("✅", key=f"r_{rid}"):
-            c.execute("UPDATE reminders SET status='Paid' WHERE id=?", (rid,)); conn.commit(); st.rerun()
-        if c3.button("🗑️", key=f"dr_{rid}"):
-            c.execute("DELETE FROM reminders WHERE id=?", (rid,)); conn.commit(); st.rerun()
+        st.progress(min(sav/gt, 1
