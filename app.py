@@ -68,6 +68,10 @@ t = {
         "quick_add": "⚡ Γρήγορη Προσθήκη",
         "export": "📥 Λήψη σε Excel",
         "urgent": "⚠️ Λήγουν σύντομα:",
+        "missu_urgent": "🐾 Υπενθύμιση για Missu:",
+        "monthly_report": "📅 Μηνιαία Αναφορά",
+        "month": "Μήνας",
+        "total": "Σύνολο",
         "action": "Ενέργεια (π.χ. Εμβόλιο)",
         "notes": "Σημειώσεις"
     },
@@ -90,7 +94,11 @@ t = {
         "quick_add": "⚡ Añadir Rápido",
         "export": "📥 Descargar Excel",
         "urgent": "⚠️ Vencen pronto:",
-        "action": "Acción (vacuna, etc.)",
+        "missu_urgent": "🐾 Recordatorio Missu:",
+        "monthly_report": "📅 Informe Mensual",
+        "month": "Mes",
+        "total": "Total",
+        "action": "Acción",
         "notes": "Notas"
     },
     "🇺🇸 English": {
@@ -112,6 +120,10 @@ t = {
         "quick_add": "⚡ Quick Add",
         "export": "📥 Download Excel",
         "urgent": "⚠️ Due soon:",
+        "missu_urgent": "🐾 Missu Reminder:",
+        "monthly_report": "📅 Monthly Report",
+        "month": "Month",
+        "total": "Total",
         "action": "Action",
         "notes": "Notes"
     }
@@ -139,7 +151,7 @@ df = pd.read_sql_query("SELECT * FROM entries", conn)
 if choice in ["Κεντρική", "Panel", "Dashboard"]:
     st.title(choice)
     
-    # SPLIT BILLS LOGIC
+    # SPLIT BILLS INFO
     if not df.empty:
         shared = df[df['is_shared'] == 1]
         ais_paid_for_shared = shared[shared['person'] == 'Άις']['amount'].sum() / 2
@@ -155,24 +167,59 @@ if choice in ["Κεντρική", "Panel", "Dashboard"]:
 
     st.divider()
     
-    # URGENT REMINDERS
-    st.subheader(curr_t["urgent"])
+    # MISSU ALERTS
+    st.subheader(curr_t["missu_urgent"])
     today_dt = datetime.now().date()
     next_week = today_dt + timedelta(days=7)
-    urgent_rem = c.execute("SELECT title, due_date, amount FROM reminders WHERE due_date <= ?", (str(next_week),)).fetchall()
-    for title, due, amt in urgent_rem:
-        st.warning(f"🕒 {title}: {amt}€ - {due}")
+    missu_urgent = c.execute("SELECT action, date FROM missu_care WHERE date >= ? AND date <= ?", 
+                             (str(today_dt), str(next_week))).fetchall()
+    if missu_urgent:
+        for m_act, m_date in missu_urgent:
+            st.error(f"🐾 **{m_act}** στις {m_date}!")
+    else:
+        st.write("✨ Καμία εκκρεμότητα για τη Missu σύντομα.")
+
+    st.divider()
+    
+    # BILL REMINDERS
+    st.subheader(curr_t["urgent"])
+    urgent_rem = c.execute("SELECT title, due_date, amount FROM reminders WHERE due_date >= ? AND due_date <= ?", 
+                           (str(today_dt), str(next_week))).fetchall()
+    if urgent_rem:
+        for title, due, amt in urgent_rem:
+            st.warning(f"🕒 {title}: {amt}€ - {due}")
+    else:
+        st.write("✅ Όλοι οι λογαριασμοί είναι εντάξει.")
 
     st.divider()
 
+    # CHARTS & MONTHLY REPORT
     if not df.empty:
         df['amount'] = pd.to_numeric(df['amount'])
+        df['date'] = pd.to_datetime(df['date'])
+        
+        # Metrics
         t_inc = df[df['type'] == 'Income']['amount'].sum()
         t_exp = df[df['type'] == 'Expense']['amount'].sum()
         c1, c2, c3 = st.columns(3)
         c1.metric(curr_t["menu"][1], f"{t_inc:,.2f} €")
         c2.metric(curr_t["menu"][2], f"{t_exp:,.2f} €")
         c3.metric("Balance", f"{(t_inc - t_exp):,.2f} €")
+        
+        st.divider()
+        st.subheader(curr_t["monthly_report"])
+        exp_df = df[df['type'] == 'Expense'].copy()
+        if not exp_df.empty:
+            # Bar Chart Categories
+            cat_df = exp_df.groupby('category')['amount'].sum().reset_index()
+            st.bar_chart(data=cat_df, x='category', y='amount')
+            
+            # Monthly Table
+            exp_df['month_year'] = exp_df['date'].dt.strftime('%Y-%m')
+            monthly_summary = exp_df.groupby('month_year')['amount'].sum().reset_index()
+            monthly_summary.columns = [curr_t["month"], curr_t["total"]]
+            st.table(monthly_summary)
+            
         st.download_button(label=curr_t["export"], data=to_excel(df), file_name="finances.xlsx")
 
 # --- 2. INCOME ---
@@ -187,7 +234,7 @@ elif choice == curr_t["menu"][1]:
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
                       ("Income", p, cat, amt, desc, str(datetime.now().date())))
             conn.commit()
-            st.balloons() # Εδώ είναι τα μπαλόνια!
+            st.balloons()
             st.success("Saved!")
             time.sleep(1)
             st.rerun()
@@ -271,8 +318,17 @@ elif choice == curr_t["menu"][5]:
         if st.form_submit_button(curr_t["save"]):
             c.execute("INSERT INTO reminders (title, due_date, amount) VALUES (?,?,?)", (t_rem, str(d_rem), a_rem))
             conn.commit(); st.rerun()
+    st.divider()
+    all_rems = c.execute("SELECT * FROM reminders ORDER BY due_date ASC").fetchall()
+    for rid, rt, rd, ra in all_rems:
+        c1, c2, c3 = st.columns([0.5, 0.3, 0.2])
+        c1.write(f"📅 {rd} - **{rt}**")
+        c2.write(f"{ra} €")
+        if c3.button("🗑️", key=f"del_rem_{rid}"):
+            c.execute("DELETE FROM reminders WHERE id=?", (rid,))
+            conn.commit(); st.rerun()
 
-# --- 7. HISTORY & 8. GOALS (Υπάρχουν κανονικά στον κώδικα) ---
+# --- 7. HISTORY & 8. GOALS (Προστέθηκαν για πληρότητα) ---
 elif choice == curr_t["menu"][6]:
     st.header(curr_t["history_title"])
     df_show = pd.read_sql_query("SELECT * FROM entries ORDER BY id DESC", conn)
