@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -18,14 +17,14 @@ if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
 if not st.session_state["authenticated"]:
-    st.title("🔒 Login Required")
-    pwd_input = st.text_input("Κωδικός πρόσβασης:", type="password")
-    if st.button("Είσοδος"):
+    st.title("🔒 Login")
+    pwd_input = st.text_input("Password:", type="password")
+    if st.button("Enter"):
         if pwd_input == MASTER_PASSWORD:
             st.session_state["authenticated"] = True
             st.rerun()
         else:
-            st.error("Λάθος κωδικός!")
+            st.error("Wrong password!")
     st.stop()
 
 # --- DATABASE SETUP ---
@@ -42,67 +41,123 @@ c.execute('''CREATE TABLE IF NOT EXISTS common_products
              (id INTEGER PRIMARY KEY, name TEXT, store TEXT)''')
 conn.commit()
 
+# --- TRANSLATIONS DICTIONARY ---
+lang_choice = st.sidebar.radio("Language / Idioma", ["🇬🇷 Ελληνικά", "🇪🇸 Español", "🇬🇧 English"])
+
+t = {
+    "🇬🇷 Ελληνικά": {
+        "menu": ["Κεντρική", "Έσοδα", "Έξοδα", "🛒 Σούπερ Μάρκετ", "Ιστορικό", "🎯 Στόχοι"],
+        "income_title": "💰 Προσθήκη Εσόδου",
+        "expense_title": "💸 Καταγραφή Εξόδου",
+        "shopping_title": "🛒 Λίστα για Ψώνια",
+        "history_title": "📜 Ιστορικό",
+        "goals_title": "🎯 Στόχοι",
+        "amount": "Ποσό (€)",
+        "desc": "Περιγραφή",
+        "save": "Αποθήκευση",
+        "person": "Ποιος;",
+        "cat": "Κατηγορία",
+        "who_asked": "Ποιος το ζήτησε;",
+        "store": "Κατάστημα",
+        "add_goal": "Προσθήκη Νέου Στόχου",
+        "goal_name": "Όνομα Στόχου (π.χ. Ταξίδι)",
+        "goal_amt": "Ποσό Στόχου (€)",
+        "quick_add": "⚡ Γρήγορη Προσθήκη",
+        "missu_cat": "🐾 Missu"
+    },
+    "🇪🇸 Español": {
+        "menu": ["Panel", "Ingresos", "Gastos", "🛒 Supermercado", "Historial", "🎯 Objetivos"],
+        "income_title": "💰 Añadir Ingreso",
+        "expense_title": "💸 Registrar Gasto",
+        "shopping_title": "🛒 Lista de Compras",
+        "history_title": "📜 Historial",
+        "goals_title": "🎯 Objetivos",
+        "amount": "Cantidad (€)",
+        "desc": "Descripción",
+        "save": "Guardar",
+        "person": "¿Quién?",
+        "cat": "Categoría",
+        "who_asked": "¿Quién lo pidió?",
+        "store": "Tienda",
+        "add_goal": "Añadir Nuevo Objetivo",
+        "goal_name": "Nombre del Objetivo",
+        "goal_amt": "Cantidad Meta (€)",
+        "quick_add": "⚡ Añadir Rápido",
+        "missu_cat": "🐾 Missu"
+    },
+    "🇬🇧 English": {
+        "menu": ["Dashboard", "Income", "Expenses", "🛒 Shopping List", "History", "🎯 Goals"],
+        "income_title": "💰 Add Income",
+        "expense_title": "💸 Record Expense",
+        "shopping_title": "🛒 Shopping List",
+        "history_title": "📜 History",
+        "goals_title": "🎯 Goals",
+        "amount": "Amount (€)",
+        "desc": "Description",
+        "save": "Save",
+        "person": "Who?",
+        "cat": "Category",
+        "who_asked": "Who asked?",
+        "store": "Store",
+        "add_goal": "Add New Goal",
+        "goal_name": "Goal Name",
+        "goal_amt": "Target Amount (€)",
+        "quick_add": "⚡ Quick Add",
+        "missu_cat": "🐾 Missu"
+    }
+}
+
+curr_t = t[lang_choice]
+choice = st.sidebar.selectbox("Menu", curr_t["menu"])
+
 # --- FUNCTIONS ---
 def image_to_base64(image):
     buffered = BytesIO()
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# --- MENU ---
-lang_choice = st.sidebar.radio("Language", ["🇬🇷 Ελληνικά", "🇪🇸 Español", "🇬🇧 English"])
-menu_options = {
-    "🇬🇷 Ελληνικά": ["Κεντρική", "Έσοδα", "Έξοδα", "🛒 Σούπερ Μάρκετ", "Ιστορικό", "🎯 Στόχοι"],
-    "🇪🇸 Español": ["Panel", "Ingresos", "Gastos", "🛒 Supermercado", "Historial", "🎯 Objetivos"],
-    "🇬🇧 English": ["Dashboard", "Income", "Expenses", "🛒 Shopping List", "History", "🎯 Goals"]
-}
-choice = st.sidebar.selectbox("Menu", menu_options[lang_choice])
-
 df = pd.read_sql_query("SELECT * FROM entries", conn)
 
-# --- 1. ΚΕΝΤΡΙΚΗ ---
+# --- 1. DASHBOARD ---
 if choice in ["Κεντρική", "Panel", "Dashboard"]:
-    st.title("📊 Dashboard")
+    st.title(choice)
     if not df.empty:
         df['amount'] = pd.to_numeric(df['amount'])
         t_inc = df[df['type'] == 'Income']['amount'].sum()
         t_exp = df[df['type'] == 'Expense']['amount'].sum()
         c1, c2, c3 = st.columns(3)
-        c1.metric("💰 Έσοδα", f"{t_inc:,.2f} €")
-        c2.metric("💸 Έξοδα", f"{t_exp:,.2f} €")
-        c3.metric("⚖️ Υπόλοιπο", f"{(t_inc - t_exp):,.2f} €")
+        c1.metric(curr_t["menu"][1], f"{t_inc:,.2f} €")
+        c2.metric(curr_t["menu"][2], f"{t_exp:,.2f} €")
+        c3.metric("Balance", f"{(t_inc - t_exp):,.2f} €")
         st.divider()
         exp_only = df[df['type'] == 'Expense']
         if not exp_only.empty:
             exp_df = exp_only.groupby('category')['amount'].sum().reset_index()
-            st.subheader("Έξοδα ανά Κατηγορία")
             st.bar_chart(data=exp_df, x='category', y='amount')
-    else: st.info("Δεν υπάρχουν δεδομένα.")
 
-# --- 2. ΕΣΟΔΑ ---
-elif choice in ["Έσοδα", "Ingresos", "Income"]:
-    st.header("💰 Προσθήκη Εσόδου")
+# --- 2. INCOME ---
+elif choice == curr_t["menu"][1]:
+    st.header(curr_t["income_title"])
     with st.form("inc_form"):
-        p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
-        cat = st.selectbox("Κατηγορία", ["Μισθός", "Ενοίκιο", "Άλλο"])
-        amt = st.number_input("Ποσό (€)", min_value=0.0, step=0.01, format="%.2f")
-        desc = st.text_input("Περιγραφή")
-        if st.form_submit_button("Αποθήκευση"):
+        p = st.selectbox(curr_t["person"], ["Άις", "Κωνσταντίνος"])
+        cat = st.selectbox(curr_t["cat"], ["Salary", "Rent", "Other"])
+        amt = st.number_input(curr_t["amount"], min_value=0.0, step=0.01)
+        desc = st.text_input(curr_t["desc"])
+        if st.form_submit_button(curr_t["save"]):
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
                       ("Income", p, cat, amt, desc, str(datetime.now().date())))
-            conn.commit()
-            st.balloons(); st.rerun()
+            conn.commit(); st.balloons(); st.rerun()
 
-# --- 3. ΕΞΟΔΑ ---
-elif choice in ["Έξοδα", "Gastos", "Expenses"]:
-    st.header("💸 Καταγραφή Εξόδου")
+# --- 3. EXPENSES ---
+elif choice == curr_t["menu"][2]:
+    st.header(curr_t["expense_title"])
     with st.form("exp_form"):
-        p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
-        # Εδώ το σωστό όνομα Missu 🐾
-        cat = st.selectbox("Κατηγορία", ["🐾 Missu", "Σούπερ Μάρκετ", "Φαγητό", "Λογαριασμοί", "Ενοίκιο", "Διασκέδαση", "Σπίτι", "Υγεία", "Άλλο"])
-        amt = st.number_input("Ποσό (€)", min_value=0.0, step=0.01, format="%.2f")
-        desc = st.text_input("Περιγραφή")
-        uploaded_file = st.file_uploader("Φωτογραφία Απόδειξης", type=['jpg', 'jpeg', 'png'])
-        if st.form_submit_button("Καταχώρηση"):
+        p = st.selectbox(curr_t["person"], ["Άις", "Κωνσταντίνος"])
+        cat = st.selectbox(curr_t["cat"], [curr_t["missu_cat"], "Supermarket", "Food", "Bills", "Rent", "Entertainment", "Home", "Health", "Other"])
+        amt = st.number_input(curr_t["amount"], min_value=0.0, step=0.01)
+        desc = st.text_input(curr_t["desc"])
+        uploaded_file = st.file_uploader("Receipt Photo", type=['jpg', 'jpeg', 'png'])
+        if st.form_submit_button(curr_t["save"]):
             img_str = ""
             if uploaded_file:
                 img = Image.open(uploaded_file)
@@ -110,92 +165,82 @@ elif choice in ["Έξοδα", "Gastos", "Expenses"]:
                 img_str = image_to_base64(img)
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date, receipt) VALUES (?,?,?,?,?,?,?)",
                       ("Expense", p, cat, amt, desc, str(datetime.now().date()), img_str))
-            conn.commit()
-            st.success("Καταγράφηκε!"); time.sleep(0.5); st.rerun()
+            conn.commit(); st.success("OK!"); time.sleep(0.5); st.rerun()
 
-# --- 4. ΣΟΥΠΕΡ ΜΑΡΚΕΤ ---
-elif choice in ["🛒 Σούπερ Μάρκετ", "🛒 Supermercado", "🛒 Shopping List"]:
-    st.header("🛒 Λίστα για Ψώνια")
-    
-    st.subheader("⚡ Γρήγορη Προσθήκη (Lidl & Σκλαβενίτης)")
+# --- 4. SHOPPING LIST ---
+elif choice == curr_t["menu"][3]:
+    st.header(curr_t["shopping_title"])
+    st.subheader(curr_t["quick_add"])
     col_l, col_s = st.columns(2)
-    
     with col_l:
         st.write("🏬 **Lidl**")
         lidl_items = c.execute("SELECT id, name FROM common_products WHERE store='Lidl'").fetchall()
         for i_id, i_name in lidl_items:
-            if st.button(f"+ {i_name}", key=f"quick_l_{i_id}"):
-                c.execute("INSERT INTO shopping_list (item, store, added_by) VALUES (?,?,?)", (i_name, "Lidl", "Χρήστης"))
+            if st.button(f"+ {i_name}", key=f"ql_{i_id}"):
+                c.execute("INSERT INTO shopping_list (item, store, added_by) VALUES (?,?,?)", (i_name, "Lidl", "App"))
                 conn.commit(); st.rerun()
-                
     with col_s:
         st.write("🏬 **Σκλαβενίτης**")
         sklav_items = c.execute("SELECT id, name FROM common_products WHERE store='Σκλαβενίτης'").fetchall()
         for i_id, i_name in sklav_items:
-            if st.button(f"+ {i_name}", key=f"quick_s_{i_id}"):
-                c.execute("INSERT INTO shopping_list (item, store, added_by) VALUES (?,?,?)", (i_name, "Σκλαβενίτης", "Χρήστης"))
+            if st.button(f"+ {i_name}", key=f"qs_{i_id}"):
+                c.execute("INSERT INTO shopping_list (item, store, added_by) VALUES (?,?,?)", (i_name, "Σκλαβενίτης", "App"))
                 conn.commit(); st.rerun()
-
     st.divider()
-
-    view_store = st.radio("Φίλτρο:", ["Όλα", "Lidl", "Σκλαβενίτης"], horizontal=True)
-    q = "SELECT * FROM shopping_list"
-    if view_store != "Όλα": q += f" WHERE store='{view_store}'"
-    
-    items = c.execute(q).fetchall()
-    if items:
-        for item_id, name, st_name, added_by in items:
-            c1, c2 = st.columns([0.8, 0.2])
-            c1.write(f"🛒 **{name}** ({st_name})")
-            if c2.button("✅ Πήρα", key=f"del_shop_{item_id}"):
-                c.execute("DELETE FROM shopping_list WHERE id=?", (item_id,))
-                conn.commit(); st.rerun()
-    else: st.info("Η λίστα είναι άδεια!")
-
-    st.divider()
-
-    with st.expander("⚙️ Διαχείριση Προϊόντων (Πρόσθεσε κουμπιά)"):
-        with st.form("add_common_item", clear_on_submit=True):
-            new_c_item = st.text_input("Όνομα προϊόντος (π.χ. Άμμος Missu)")
-            new_c_store = st.selectbox("Κατάστημα:", ["Lidl", "Σκλαβενίτης"])
-            if st.form_submit_button("Προσθήκη"):
-                if new_c_item:
-                    c.execute("INSERT INTO common_products (name, store) VALUES (?,?)", (new_c_item, new_c_store))
-                    conn.commit(); st.rerun()
-        
-        st.write("---")
-        all_c = c.execute("SELECT * FROM common_products").fetchall()
-        for cid, cn, cs in all_c:
-            if st.button(f"🗑️ Διαγραφή: {cn} ({cs})", key=f"rm_c_{cid}"):
-                c.execute("DELETE FROM common_products WHERE id=?", (cid,))
+    items = c.execute("SELECT * FROM shopping_list").fetchall()
+    for item_id, name, st_name, added_by in items:
+        c1, c2 = st.columns([0.8, 0.2])
+        c1.write(f"🛒 **{name}** ({st_name})")
+        if c2.button("✅", key=f"ds_{item_id}"):
+            c.execute("DELETE FROM shopping_list WHERE id=?", (item_id,))
+            conn.commit(); st.rerun()
+    with st.expander("⚙️ Settings"):
+        with st.form("add_c"):
+            n = st.text_input("Item name")
+            s = st.selectbox("Store", ["Lidl", "Σκλαβενίτης"])
+            if st.form_submit_button("Add Quick Button"):
+                c.execute("INSERT INTO common_products (name, store) VALUES (?,?)", (n, s))
                 conn.commit(); st.rerun()
 
-# --- 5. ΙΣΤΟΡΙΚΟ ---
-elif choice in ["Ιστορικό", "Historial", "History"]:
-    st.header("📜 Ιστορικό")
+# --- 5. HISTORY ---
+elif choice == curr_t["menu"][4]:
+    st.header(curr_t["history_title"])
     df_show = pd.read_sql_query("SELECT * FROM entries ORDER BY id DESC", conn)
     for idx, row in df_show.iterrows():
         with st.expander(f"{row['date']} | {row['amount']:.2f}€ | {row['category']}"):
-            st.write(f"Περιγραφή: {row['source_desc']}")
-            if row['receipt']:
-                st.image(base64.b64decode(row['receipt']))
-            if st.button("🗑️ Διαγραφή", key=f"del_entry_{row['id']}"):
+            if row['receipt']: st.image(base64.b64decode(row['receipt']))
+            if st.button("🗑️", key=f"del_{row['id']}"):
                 c.execute("DELETE FROM entries WHERE id=?", (row['id'],))
                 conn.commit(); st.rerun()
 
-# --- 6. ΣΤΟΧΟΙ ---
-elif choice == "🎯 Στόχοι":
-    st.header("🎯 Στόχοι")
+# --- 6. GOALS ---
+elif choice == curr_t["menu"][5]:
+    st.header(curr_t["goals_title"])
+    
+    # ΦΟΡΜΑ ΠΡΟΣΘΗΚΗΣ ΣΤΟΧΟΥ
+    with st.form("new_goal_form"):
+        st.subheader(curr_t["add_goal"])
+        g_name = st.text_input(curr_t["goal_name"])
+        g_target = st.number_input(curr_t["goal_amt"], min_value=0.0)
+        if st.form_submit_button(curr_t["save"]):
+            if g_name and g_target > 0:
+                c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (g_name, g_target))
+                conn.commit(); st.success("Goal added!"); st.rerun()
+
+    st.divider()
+    
+    # ΕΜΦΑΝΙΣΗ ΣΤΟΧΩΝ
     total_inc = df[df['type'] == 'Income']['amount'].sum()
     total_exp = df[df['type'] == 'Expense']['amount'].sum()
-    real_money = total_inc - total_exp
-    st.metric("Υπόλοιπο", f"{real_money:,.2f} €")
+    savings = total_inc - total_exp
+    st.metric("Total Savings", f"{savings:,.2f} €")
     
-    goals_df = pd.read_sql_query("SELECT * FROM goals", conn)
-    for idx, row in goals_df.iterrows():
-        st.subheader(row['name'])
-        prog = min(real_money / row['target_amount'], 1.0) if row['target_amount'] > 0 else 0
+    goals_list = c.execute("SELECT * FROM goals").fetchall()
+    for gid, name, target in goals_list:
+        st.write(f"**{name}**")
+        prog = min(savings / target, 1.0) if target > 0 else 0
         st.progress(prog)
-        if st.button("Διαγραφή Στόχου", key=f"goal_del_{row['id']}"):
-            c.execute("DELETE FROM goals WHERE id=?", (row['id'],))
+        st.write(f"{savings:,.2f} / {target:,.2f} € ({(prog*100):.1f}%)")
+        if st.button(f"🗑️ Delete {name}", key=f"dg_{gid}"):
+            c.execute("DELETE FROM goals WHERE id=?", (gid,))
             conn.commit(); st.rerun()
