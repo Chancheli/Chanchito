@@ -3,3 +3,4 @@ xlsxwriter
 Pillow
 plotly
 streamlit_lottie
+requests
