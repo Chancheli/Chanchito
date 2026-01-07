@@ -64,7 +64,7 @@ def image_to_base64(image):
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# Φόρτωση Δεδομένων
+# Load Data
 full_df = pd.read_sql_query("SELECT * FROM entries", conn)
 if not full_df.empty:
     full_df['date_dt'] = pd.to_datetime(full_df['date'])
@@ -86,8 +86,7 @@ if choice == "🏠 Αρχική":
 
     if not df.empty:
         t_inc = df[df['type'] == 'Income']['amount'].sum()
-        
-        # Εδώ γίνεται το φιλτράρισμα: Εξαιρούμε την Αποταμίευση από τα Έξοδα της Αρχικής
+        # Εξαίρεση αποταμίευσης από τα έξοδα της αρχικής
         actual_expenses_df = df[(df['type'] == 'Expense') & (df['category'] != "🐷 Αποταμίευση")]
         t_exp_real = actual_expenses_df['amount'].sum()
         
@@ -95,10 +94,23 @@ if choice == "🏠 Αρχική":
         c1.metric("Έσοδα", f"{t_inc:,.2f} €")
         c2.metric("Πραγματικά Έξοδα", f"{t_exp_real:,.2f} €")
         c3.metric("Διαθέσιμο Υπόλοιπο 🐷", f"{(t_inc - t_exp_real):,.2f} €")
-        
-        st.caption("*(Στα έξοδα και στο υπόλοιπο δεν προσμετράται ο κουμπαράς)*")
     
     st.divider()
+
+    # --- ΓΡΑΦΗΜΑΤΑ (ΠΡΟΣΘΗΚΗ) ---
+    if not df.empty and not actual_expenses_df.empty:
+        st.subheader("📊 Ανάλυση Πραγματικών Εξόδων")
+        g1, g2 = st.columns(2)
+        with g1:
+            st.write("📂 Ανά Κατηγορία")
+            cat_chart = actual_expenses_df.groupby('category')['amount'].sum()
+            st.bar_chart(cat_chart)
+        with g2:
+            st.write("📅 Ανά Ημερομηνία")
+            date_chart = actual_expenses_df.groupby('date')['amount'].sum()
+            st.line_chart(date_chart)
+        st.divider()
+
     col1, col2 = st.columns(2)
     today_s = str(datetime.now().date())
     next_w_s = str(datetime.now().date() + timedelta(days=7))
@@ -114,7 +126,6 @@ if choice == "🏠 Αρχική":
     st.divider()
     if not df.empty:
         shared = df[df['is_shared'] == 1]
-        # Εδώ επίσης, αν θέλεις οι εκκρεμότητες να μην επηρεάζονται από αποταμίευση, φιλτράρουμε
         shared_no_savings = shared[shared['category'] != "🐷 Αποταμίευση"]
         ais_paid = shared_no_savings[shared_no_savings['person'] == 'Άις']['amount'].sum() / 2
         kon_paid = shared_no_savings[shared_no_savings['person'] == 'Κωνσταντίνος']['amount'].sum() / 2
@@ -126,7 +137,7 @@ if choice == "🏠 Αρχική":
 # --- 2. ΕΣΟΔΑ ---
 elif choice == "💰 Έσοδα":
     st.header("💰 Προσθήκη Εσόδου")
-    with st.form("inc_form_final"):
+    with st.form("inc_form_fixed"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["Μισθός", "Ενοίκιο", "Άλλο"])
         amt = st.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
@@ -137,14 +148,14 @@ elif choice == "💰 Έσοδα":
                       ("Income", p, cat, amt, desc, str(d_inc), "", 0))
             conn.commit()
             st.balloons()
-            st.success(f"Το έσοδο ({format_date_str(str(d_inc))}) αποθηκεύτηκε! ✨")
+            st.success("Αποθηκεύτηκε! ✨")
             time.sleep(1.2)
             st.rerun()
 
 # --- 3. ΕΞΟΔΑ ---
 elif choice == "💸 Έξοδα":
     st.header("💸 Καταγραφή Εξόδου")
-    with st.form("exp_form_final"):
+    with st.form("exp_form_fixed"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["🐷 Αποταμίευση", "🐾 Missu", "🛒 Supermarket", "🍕 Φαγητό", "⚡ Λογαριασμοί", "🏠 Ενοίκιο", "🎬 Διασκέδαση", "🧸 Σπίτι", "💊 Υγεία", "🌈 Άλλο"])
         amt = st.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
@@ -181,7 +192,7 @@ elif choice == "🛒 Σούπερ Μάρκετ":
         if c_b.button("✅", key=f"ds_{sid}"):
             c.execute("DELETE FROM shopping_list WHERE id=?", (sid,)); conn.commit(); st.rerun()
     with st.expander("✨ Προσθήκη Νέου Προϊόντος"):
-        with st.form("new_p_final"):
+        with st.form("new_p"):
             n_n = st.text_input("Προϊόν"); n_s = st.selectbox("Store", ["Lidl", "Σκλαβενίτης"])
             if st.form_submit_button("Προσθήκη"):
                 if n_n:
@@ -191,7 +202,7 @@ elif choice == "🛒 Σούπερ Μάρκετ":
 # --- 5. MISSU CARE ---
 elif choice == "🐾 Missu Care":
     st.header("🐾 Ημερολόγιο Missu")
-    with st.form("missu_final"):
+    with st.form("missu_fixed"):
         act = st.text_input("Ενέργεια"); dt = st.date_input("Ημερομηνία", datetime.now()); nts = st.text_area("Σημειώσεις")
         if st.form_submit_button("Αποθήκευση"):
             c.execute("INSERT INTO missu_care (action, date, notes) VALUES (?,?,?)", (act, str(dt), nts))
@@ -205,12 +216,11 @@ elif choice == "🐾 Missu Care":
 # --- 6. ΣΤΟΧΟΙ ---
 elif choice == "🎯 Στόχοι":
     st.header("🎯 Στόχοι Αποταμίευσης")
-    with st.form("goal_final"):
+    with st.form("goal_fixed"):
         gn = st.text_input("Στόχος"); gt = st.number_input("Ποσό", min_value=1.0)
         if st.form_submit_button("Αποθήκευση"):
             c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (gn, gt)); conn.commit(); st.rerun()
     
-    # Εδώ η αποταμίευση μετράει κανονικά!
     savings = full_df[(full_df['type'] == 'Expense') & (full_df['category'] == "🐷 Αποταμίευση")]['amount'].sum() if not full_df.empty else 0
     st.metric("Συνολική Αποταμίευση στον Κουμπαρά 🐽", f"{savings:,.2f} €")
     for gid, gn, gt in c.execute("SELECT * FROM goals").fetchall():
@@ -224,7 +234,7 @@ elif choice == "🎯 Στόχοι":
 # --- 7. ΥΠΕΝΘΥΜΙΣΕΙΣ ---
 elif choice == "🔔 Υπενθυμίσεις":
     st.header("🔔 Λήξεις & Λογαριασμοί")
-    with st.form("rem_final"):
+    with st.form("rem_fixed"):
         tr = st.text_input("Τίτλος"); dr = st.date_input("Ημερομηνία"); ar = st.number_input("Ποσό")
         if st.form_submit_button("Αποθήκευση"):
             c.execute("INSERT INTO reminders (title, due_date, amount) VALUES (?,?,?)", (tr, str(dr), ar)); conn.commit(); st.rerun()
