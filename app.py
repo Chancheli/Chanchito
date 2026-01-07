@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -14,7 +12,7 @@ MASTER_PASSWORD = "γουρουνακια3"
 
 st.set_page_config(page_title="Chanchito Pro & Missu 🐷", layout="wide")
 
-# --- CUSTOM CSS ---
+# --- CUSTOM CSS (Dark Mode Friendly) ---
 st.markdown("""
     <style>
     .stButton>button { border-radius: 20px; border: 2px solid #ff4d6d; transition: all 0.3s; font-weight: bold; }
@@ -68,11 +66,12 @@ def image_to_base64(image):
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode()
 
+# Load Data
 full_df = pd.read_sql_query("SELECT * FROM entries", conn)
 if not full_df.empty:
     full_df['date_dt'] = pd.to_datetime(full_df['date'])
 
-# --- SIDEBAR MENU ---
+# --- MENU ---
 menu_options = ["🏠 Αρχική", "💰 Έσοδα", "💸 Έξοδα", "🛒 Σούπερ Μάρκετ", "🐾 Missu Care", "🔔 Υπενθυμίσεις", "📜 Ιστορικό", "🎯 Στόχοι"]
 choice = st.sidebar.selectbox("Μενού", menu_options)
 
@@ -88,7 +87,7 @@ if choice == "🏠 Αρχική":
         elif drange == "Τελευταίες 30 μέρες":
             df = df[df['date_dt'] >= (datetime.now() - timedelta(days=30))]
 
-    # ΕΣΟΔΑ-ΕΞΟΔΑ-ΥΠΟΛΟΙΠΟ (Στην κορυφή)
+    # METRICS (Στην κορυφή όπως ζητήθηκε)
     if not df.empty:
         t_inc = df[df['type'] == 'Income']['amount'].sum()
         t_exp = df[df['type'] == 'Expense']['amount'].sum()
@@ -99,7 +98,7 @@ if choice == "🏠 Αρχική":
     
     st.divider()
     
-    # ΕΙΔΟΠΟΙΗΣΕΙΣ
+    # ALERTS
     col1, col2 = st.columns(2)
     today_s = str(datetime.now().date())
     next_w_s = str(datetime.now().date() + timedelta(days=7))
@@ -114,7 +113,7 @@ if choice == "🏠 Αρχική":
 
     st.divider()
     
-    # ΕΚΚΡΕΜΟΤΗΤΕΣ 50/50
+    # DEBTS (50/50)
     if not df.empty:
         shared = df[df['is_shared'] == 1]
         ais_paid = shared[shared['person'] == 'Άις']['amount'].sum() / 2
@@ -126,7 +125,7 @@ if choice == "🏠 Αρχική":
 
     st.divider()
     
-    # ΑΝΑΦΟΡΑ
+    # REPORT
     st.subheader("📅 Αναφορά Εξόδων")
     exp_only = df[df['type'] == 'Expense'] if not df.empty else pd.DataFrame()
     if not exp_only.empty:
@@ -137,7 +136,7 @@ if choice == "🏠 Αρχική":
 # --- 2. ΕΣΟΔΑ ---
 elif choice == "💰 Έσοδα":
     st.header("💰 Προσθήκη Εσόδου")
-    with st.form("income_form"):
+    with st.form("income_form_final"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["Μισθός", "Ενοίκιο", "Άλλο"])
         amt = st.number_input("Ποσό (€)", min_value=0.0)
@@ -155,7 +154,7 @@ elif choice == "💰 Έσοδα":
 # --- 3. ΕΞΟΔΑ ---
 elif choice == "💸 Έξοδα":
     st.header("💸 Καταγραφή Εξόδου")
-    with st.form("expense_form"):
+    with st.form("expense_form_final"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["🐷 Αποταμίευση", "🐾 Missu", "🛒 Supermarket", "🍕 Φαγητό", "⚡ Λογαριασμοί", "🏠 Ενοίκιο", "🎬 Διασκέδαση", "🧸 Σπίτι", "💊 Υγεία", "🌈 Άλλο"])
         amt = st.number_input("Ποσό (€)", min_value=0.0)
@@ -171,4 +170,41 @@ elif choice == "💸 Έξοδα":
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date, receipt, is_shared) VALUES (?,?,?,?,?,?,?,?)",
                       ("Expense", p, cat, amt, desc, str(datetime.now().date()), img_s, 1 if sh else 0))
             conn.commit()
-            st.success("Το έξοδο απο
+            st.success("Το έξοδο αποθηκεύτηκε!")
+            time.sleep(1)
+            st.rerun()
+
+# --- 4. SUPER MARKET ---
+elif choice == "🛒 Σούπερ Μάρκετ":
+    st.header("🛒 Λίστα για Ψώνια")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("🏬 **Lidl**")
+        for i_id, i_n in c.execute("SELECT id, name FROM common_products WHERE store='Lidl'").fetchall():
+            if st.button(f"➕ {i_n}", key=f"l_{i_id}"):
+                c.execute("INSERT INTO shopping_list (item, store) VALUES (?,?)", (i_n, "Lidl"))
+                conn.commit()
+                st.rerun()
+    with col2:
+        st.write("🏬 **Σκλαβενίτης**")
+        for i_id, i_n in c.execute("SELECT id, name FROM common_products WHERE store='Σκλαβενίτης'").fetchall():
+            if st.button(f"➕ {i_n}", key=f"s_{i_id}"):
+                c.execute("INSERT INTO shopping_list (item, store) VALUES (?,?)", (i_n, "Σκλαβενίτης"))
+                conn.commit()
+                st.rerun()
+    st.divider()
+    for sid, sit, sst, sab in c.execute("SELECT * FROM shopping_list").fetchall():
+        c_a, c_b = st.columns([0.8, 0.2])
+        c_a.write(f"🛒 {sit} ({sst})")
+        if c_b.button("✅", key=f"ds_{sid}"):
+            c.execute("DELETE FROM shopping_list WHERE id=?", (sid,))
+            conn.commit()
+            st.rerun()
+    with st.expander("Νέο Προϊόν ✨"):
+        with st.form("new_prod_form_final"):
+            n = st.text_input("Προϊόν")
+            s = st.selectbox("Store", ["Lidl", "Σκλαβενίτης"])
+            if st.form_submit_button("Προσθήκη"):
+                c.execute("INSERT INTO common_products (name, store) VALUES (?,?)", (n, s))
+                conn.commit()
+                st.rerun()
