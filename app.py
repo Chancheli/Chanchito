@@ -1,3 +1,5 @@
+
+
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -12,7 +14,7 @@ MASTER_PASSWORD = "γουρουνακια3"
 
 st.set_page_config(page_title="Chanchito Pro & Missu 🐷", layout="wide")
 
-# --- CUSTOM CSS (Dark Mode Friendly) ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
     .stButton>button { border-radius: 20px; border: 2px solid #ff4d6d; transition: all 0.3s; font-weight: bold; }
@@ -66,12 +68,11 @@ def image_to_base64(image):
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# Load Data
 full_df = pd.read_sql_query("SELECT * FROM entries", conn)
 if not full_df.empty:
     full_df['date_dt'] = pd.to_datetime(full_df['date'])
 
-# --- MENU ---
+# --- SIDEBAR MENU ---
 menu_options = ["🏠 Αρχική", "💰 Έσοδα", "💸 Έξοδα", "🛒 Σούπερ Μάρκετ", "🐾 Missu Care", "🔔 Υπενθυμίσεις", "📜 Ιστορικό", "🎯 Στόχοι"]
 choice = st.sidebar.selectbox("Μενού", menu_options)
 
@@ -87,7 +88,7 @@ if choice == "🏠 Αρχική":
         elif drange == "Τελευταίες 30 μέρες":
             df = df[df['date_dt'] >= (datetime.now() - timedelta(days=30))]
 
-    # METRICS
+    # ΕΣΟΔΑ-ΕΞΟΔΑ-ΥΠΟΛΟΙΠΟ (Στην κορυφή)
     if not df.empty:
         t_inc = df[df['type'] == 'Income']['amount'].sum()
         t_exp = df[df['type'] == 'Expense']['amount'].sum()
@@ -98,7 +99,7 @@ if choice == "🏠 Αρχική":
     
     st.divider()
     
-    # ALERTS
+    # ΕΙΔΟΠΟΙΗΣΕΙΣ
     col1, col2 = st.columns(2)
     today_s = str(datetime.now().date())
     next_w_s = str(datetime.now().date() + timedelta(days=7))
@@ -113,7 +114,7 @@ if choice == "🏠 Αρχική":
 
     st.divider()
     
-    # DEBTS
+    # ΕΚΚΡΕΜΟΤΗΤΕΣ 50/50
     if not df.empty:
         shared = df[df['is_shared'] == 1]
         ais_paid = shared[shared['person'] == 'Άις']['amount'].sum() / 2
@@ -125,7 +126,7 @@ if choice == "🏠 Αρχική":
 
     st.divider()
     
-    # REPORT
+    # ΑΝΑΦΟΡΑ
     st.subheader("📅 Αναφορά Εξόδων")
     exp_only = df[df['type'] == 'Expense'] if not df.empty else pd.DataFrame()
     if not exp_only.empty:
@@ -136,7 +137,7 @@ if choice == "🏠 Αρχική":
 # --- 2. ΕΣΟΔΑ ---
 elif choice == "💰 Έσοδα":
     st.header("💰 Προσθήκη Εσόδου")
-    with st.form("inc_form"):
+    with st.form("income_form"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["Μισθός", "Ενοίκιο", "Άλλο"])
         amt = st.number_input("Ποσό (€)", min_value=0.0)
@@ -145,14 +146,29 @@ elif choice == "💰 Έσοδα":
         if st.form_submit_button("Αποθήκευση ✨"):
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
                       ("Income", p, cat, amt, desc, str(d_inc)))
-            conn.commit(); st.balloons(); st.rerun()
+            conn.commit()
+            st.balloons()
+            st.success("Το έσοδο αποθηκεύτηκε!")
+            time.sleep(1)
+            st.rerun()
 
 # --- 3. ΕΞΟΔΑ ---
 elif choice == "💸 Έξοδα":
     st.header("💸 Καταγραφή Εξόδου")
-    with st.form("exp_form"):
+    with st.form("expense_form"):
         p = st.selectbox("Ποιος;", ["Άις", "Κωνσταντίνος"])
         cat = st.selectbox("Κατηγορία", ["🐷 Αποταμίευση", "🐾 Missu", "🛒 Supermarket", "🍕 Φαγητό", "⚡ Λογαριασμοί", "🏠 Ενοίκιο", "🎬 Διασκέδαση", "🧸 Σπίτι", "💊 Υγεία", "🌈 Άλλο"])
         amt = st.number_input("Ποσό (€)", min_value=0.0)
         desc = st.text_input("Περιγραφή")
-        sh = st.checkbox("
+        sh = st.checkbox("👫 Κοινό έξοδο (50/50);")
+        up = st.file_uploader("📸 Απόδειξη", type=['jpg','png','jpeg'])
+        if st.form_submit_button("Αποθήκευση ✨"):
+            img_s = ""
+            if up:
+                img = Image.open(up)
+                img.thumbnail((400,400))
+                img_s = image_to_base64(img)
+            c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date, receipt, is_shared) VALUES (?,?,?,?,?,?,?,?)",
+                      ("Expense", p, cat, amt, desc, str(datetime.now().date()), img_s, 1 if sh else 0))
+            conn.commit()
+            st.success("Το έξοδο απο
