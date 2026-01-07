@@ -12,14 +12,14 @@ MASTER_PASSWORD = "γουρουνακια3"
 
 st.set_page_config(page_title="Chanchito Pro & Missu 🐷", layout="wide")
 
-# --- CUSTOM CSS (Παστέλ χρώματα & στυλ) ---
+# --- CUSTOM CSS (Dark Mode Friendly) ---
 st.markdown("""
     <style>
-    .stButton>button { border-radius: 20px; border: 1px solid #ffb3c1; transition: all 0.3s; }
-    .stButton>button:hover { background-color: #ffb3c1; color: white; transform: scale(1.05); }
-    [data-testid="stSidebar"] { background-color: #fff0f3; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 15px; box-shadow: 2px 2px 10px rgba(0,0,0,0.05); }
-    h1, h2, h3 { color: #ff4d6d; font-family: 'Comic Sans MS', cursive, sans-serif; }
+    .stButton>button { border-radius: 20px; border: 2px solid #ff4d6d; transition: all 0.3s; font-weight: bold; }
+    .stButton>button:hover { background-color: #ff4d6d; color: white; transform: scale(1.05); }
+    [data-testid="stSidebar"] { border-right: 2px solid #ff4d6d; }
+    .stMetric { background-color: rgba(255, 77, 109, 0.1); padding: 15px; border-radius: 15px; border: 1px solid #ff4d6d; }
+    h1, h2, h3 { color: #ff4d6d !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -57,65 +57,42 @@ c.execute('''CREATE TABLE IF NOT EXISTS missu_care
 conn.commit()
 
 # --- TRANSLATIONS ---
-lang_choice = st.sidebar.radio("Γλώσσα / Language / Idioma 🌍", ["🇬🇷 Ελληνικά", "🇪🇸 Español", "🇺🇸 English"])
+lang_choice = st.sidebar.radio("Γλώσσα 🌍", ["🇬🇷 Ελληνικά", "🇪🇸 Español", "🇺🇸 English"])
 
 t = {
     "🇬🇷 Ελληνικά": {
         "menu": ["🏠 Αρχική", "💰 Έσοδα", "💸 Έξοδα", "🛒 Σούπερ Μάρκετ", "🐾 Missu Care", "🔔 Υπενθυμίσεις", "📜 Ιστορικό", "🎯 Στόχοι"],
         "income_cats": ["Μισθός", "Ενοίκιο", "Άλλο"],
         "expense_cats": ["🐷 Αποταμίευση", "🐾 Missu", "🛒 Supermarket", "🍕 Φαγητό", "⚡ Λογαριασμοί", "🏠 Ενοίκιο", "🎬 Διασκέδαση", "🧸 Σπίτι", "💊 Υγεία", "🌈 Άλλο"],
-        "income_title": "💰 Προσθήκη Εσόδου",
-        "expense_title": "💸 Καταγραφή Εξόδου",
-        "shopping_title": "🛒 Λίστα για Ψώνια",
-        "reminders_title": "🔔 Λογαριασμοί & Λήξεις",
-        "missu_title": "🐾 Ημερολόγιο Missu",
-        "history_title": "📜 Ιστορικό",
-        "goals_title": "🎯 Στόχοι Αποταμίευσης",
-        "amount": "Ποσό (€)",
-        "desc": "Περιγραφή",
-        "save": "Αποθήκευση ✨",
-        "person": "Ποιος;",
-        "cat": "Κατηγορία",
-        "is_shared": "👫 Κοινό έξοδο (50/50);",
-        "debt_info": "📊 Εκκρεμότητες μεταξύ σας",
-        "urgent": "⚠️ Λήγουν σύντομα:",
-        "missu_urgent": "🐾 Για τη Missu:",
-        "monthly_report": "📅 Αναφορά Εξόδων",
-        "month": "Μήνας",
-        "total": "Σύνολο",
-        "action": "Ενέργεια",
-        "notes": "Σημειώσεις",
-        "balance": "Υπόλοιπο 🐷",
-        "date_range": "Διάστημα",
-        "ranges": ["Όλα", "Αυτός ο Μήνας", "Τελευταίες 30 μέρες"],
-        "goal_name": "Όνομα Στόχου",
-        "goal_target": "Ποσό Στόχου (€)"
+        "income_title": "💰 Προσθήκη Εσόδου", "expense_title": "💸 Καταγραφή Εξόδου", "shopping_title": "🛒 Λίστα για Ψώνια",
+        "reminders_title": "🔔 Λογαριασμοί", "missu_title": "🐾 Missu", "history_title": "📜 Ιστορικό", "goals_title": "🎯 Στόχοι Αποταμίευσης",
+        "amount": "Ποσό (€)", "desc": "Περιγραφή", "save": "Αποθήκευση ✨", "person": "Ποιος;", "cat": "Κατηγορία",
+        "is_shared": "👫 Κοινό έξοδο (50/50);", "debt_info": "📊 Εκκρεμότητες", "urgent": "⚠️ Λήγουν σύντομα:",
+        "missu_urgent": "🐾 Για τη Missu:", "monthly_report": "📅 Αναφορά Εξόδων", "balance": "Υπόλοιπο 🐷",
+        "date_range": "Διάστημα", "ranges": ["Όλα", "Αυτός ο Μήνας", "Τελευταίες 30 μέρες"],
+        "goal_name": "Όνομα Στόχου", "goal_target": "Ποσό Στόχου (€)"
     },
     "🇪🇸 Español": {
         "menu": ["🏠 Inicio", "💰 Ingresos", "💸 Gastos", "🛒 Supermercado", "🐾 Missu Care", "🔔 Recordatorios", "📜 Historial", "🎯 Objetivos"],
         "income_cats": ["Salario", "Alquiler", "Otros"],
         "expense_cats": ["🐷 Ahorro", "🐾 Missu", "🛒 Supermercado", "🍕 Comida", "⚡ Facturas", "🏠 Alquiler", "🎬 Ocio", "🧸 Hogar", "💊 Salud", "🌈 Otros"],
         "income_title": "💰 Ingreso", "expense_title": "💸 Gasto", "shopping_title": "🛒 Lista",
-        "reminders_title": "🔔 Facturas", "missu_title": "🐾 Diario de Missu", "history_title": "📜 Historial",
+        "reminders_title": "🔔 Facturas", "missu_title": "🐾 Missu", "history_title": "📜 Historial",
         "goals_title": "🎯 Objetivos", "amount": "Cantidad", "desc": "Descripción", "save": "Guardar ✨",
-        "person": "Quién", "cat": "Categoría", "is_shared": "¿Compartido?", "debt_info": "📊 Deudas",
-        "urgent": "⚠️ Vencen pronto:", "missu_urgent": "🐾 Missu:",
-        "monthly_report": "📅 Informe", "month": "Mes", "total": "Total", "action": "Acción",
-        "notes": "Notas", "balance": "Balance 🐷", "date_range": "Periodo", "ranges": ["Todo", "Este mes", "30 días"],
-        "goal_name": "Nombre", "goal_target": "Meta"
+        "person": "Quién", "cat": "Categoría", "is_shared": "Compartido", "debt_info": "📊 Deudas",
+        "urgent": "⚠️ Vencen:", "missu_urgent": "🐾 Missu:", "monthly_report": "📅 Informe", "balance": "Balance 🐷",
+        "date_range": "Periodo", "ranges": ["Todo", "Este mes", "30 días"], "goal_name": "Nombre", "goal_target": "Meta"
     },
     "🇺🇸 English": {
         "menu": ["🏠 Home", "💰 Income", "💸 Expenses", "🛒 Shopping", "🐾 Missu Care", "🔔 Reminders", "📜 History", "🎯 Goals"],
         "income_cats": ["Salary", "Rent", "Other"],
         "expense_cats": ["🐷 Savings", "🐾 Missu", "🛒 Supermarket", "🍕 Food", "⚡ Bills", "🏠 Rent", "🎬 Entertainment", "🧸 Home", "💊 Health", "🌈 Other"],
-        "income_title": "💰 Add Income", "expense_title": "💸 Expense", "shopping_title": "🛒 List",
+        "income_title": "💰 Income", "expense_title": "💸 Expense", "shopping_title": "🛒 List",
         "reminders_title": "🔔 Bills", "missu_title": "🐾 Missu", "history_title": "📜 History",
         "goals_title": "🎯 Goals", "amount": "Amount", "desc": "Description", "save": "Save ✨",
         "person": "Who", "cat": "Category", "is_shared": "Split?", "debt_info": "📊 Debts",
-        "urgent": "⚠️ Due:", "missu_urgent": "🐾 Missu:",
-        "monthly_report": "📅 Report", "month": "Month", "total": "Total", "action": "Action",
-        "notes": "Notes", "balance": "Balance 🐷", "date_range": "Range", "ranges": ["All", "This Month", "30 Days"],
-        "goal_name": "Goal", "goal_target": "Target"
+        "urgent": "⚠️ Due:", "missu_urgent": "🐾 Missu:", "monthly_report": "📅 Report", "balance": "Balance 🐷",
+        "date_range": "Range", "ranges": ["All", "This Month", "30 Days"], "goal_name": "Goal", "goal_target": "Target"
     }
 }
 
@@ -140,6 +117,7 @@ if not full_df.empty:
 if choice.startswith("🏠"):
     st.title("¡Hola! 🐷✨")
     
+    # 1. Φίλτρο Διαστήματος
     drange = st.selectbox(curr_t["date_range"], curr_t["ranges"])
     df = full_df.copy()
     if drange == curr_t["ranges"][1]:
@@ -147,6 +125,7 @@ if choice.startswith("🏠"):
     elif drange == curr_t["ranges"][2]:
         df = df[df['date_dt'] >= (datetime.now() - timedelta(days=30))]
 
+    # 2. ΕΣΟΔΑ-ΕΞΟΔΑ-ΥΠΟΛΟΙΠΟ (Τέρμα πάνω όπως ζητήθηκε)
     if not df.empty:
         t_inc = df[df['type'] == 'Income']['amount'].sum()
         t_exp = df[df['type'] == 'Expense']['amount'].sum()
@@ -157,6 +136,7 @@ if choice.startswith("🏠"):
     
     st.divider()
     
+    # 3. Υπενθυμίσεις Missu & Λογαριασμοί
     col1, col2 = st.columns(2)
     today_s = str(datetime.now().date())
     next_w_s = str(datetime.now().date() + timedelta(days=7))
@@ -171,6 +151,7 @@ if choice.startswith("🏠"):
 
     st.divider()
     
+    # 4. Εκκρεμότητες 50/50
     if not df.empty:
         shared = df[df['is_shared'] == 1]
         ais_paid = shared[shared['person'] == 'Άις']['amount'].sum() / 2
@@ -181,6 +162,8 @@ if choice.startswith("🏠"):
         else: st.success("✅ Είστε πάτσι! ❤️")
 
     st.divider()
+    
+    # 5. Μηνιαία Αναφορά
     st.subheader(curr_t["monthly_report"])
     exp_only = df[df['type'] == 'Expense']
     if not exp_only.empty:
@@ -258,7 +241,7 @@ elif "🐾" in choice:
             st.write(mn)
             if st.button("🗑️", key=f"dm_{mid}"): c.execute("DELETE FROM missu_care WHERE id=?", (mid,)); conn.commit(); st.rerun()
 
-# --- 6. ΣΤΟΧΟΙ ---
+# --- 6. ΣΤΟΧΟΙ (Χειροκίνητη Αποταμίευση Μόνο) ---
 elif "🎯" in choice:
     st.header(curr_t["goals_title"])
     with st.form("g_f"):
@@ -266,29 +249,25 @@ elif "🎯" in choice:
         if st.form_submit_button(curr_t["save"]):
             c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (gn, gt)); conn.commit(); st.rerun()
     
-    t_inc = full_df[full_df['type'] == 'Income']['amount'].sum() if not full_df.empty else 0
-    t_exp = full_df[full_df['type'] == 'Expense']['amount'].sum() if not full_df.empty else 0
+    st.divider()
     
-    # Εδώ τσεκάρουμε αν η κατηγορία περιέχει τη λέξη "Αποταμίευση" ή "Ahorro" ή "Savings"
-    # για να προστεθεί ξανά στον υπολογισμό των στόχων
-    spec_sav = full_df[(full_df['type'] == 'Expense') & 
-                       (full_df['category'].str.contains("Αποταμίευση|Ahorro|Savings", case=False))]['amount'].sum() if not full_df.empty else 0
+    # Εδώ μετράμε ΜΟΝΟ όσα έχουν μπει στην κατηγορία "Αποταμίευση"
+    manual_savings = full_df[(full_df['type'] == 'Expense') & 
+                            (full_df['category'].str.contains("Αποταμίευση|Ahorro|Savings", case=False))]['amount'].sum() if not full_df.empty else 0
     
-    total_sav = (t_inc - t_exp) + spec_sav
-    
-    st.metric("Συνολική Αποταμίευση 🐽", f"{total_sav:,.2f} €")
-    st.caption(f"(Περιλαμβάνει {spec_sav:,.2f} € που έχουν ήδη μεταφερθεί)")
+    st.metric("Συνολική Αποταμίευση στον Κουμπαρά 🐽", f"{manual_savings:,.2f} €")
+    st.caption("Υπολογίζεται μόνο από τις καταχωρήσεις στην κατηγορία 'Αποταμίευση'")
 
     for gid, gn, gt in c.execute("SELECT * FROM goals").fetchall():
         st.subheader(f"⭐ {gn}")
-        prog = min(total_sav / gt, 1.0) if gt > 0 else 0
+        prog = min(manual_savings / gt, 1.0) if gt > 0 else 0
         if prog == 1.0: st.balloons()
         st.progress(prog)
-        st.write(f"💪 {total_sav:,.2f} / {gt:,.2f} € ({(prog*100):.1f}%)")
-        if st.button(f"🗑️ {gn}", key=f"dg_{gid}"):
+        st.write(f"💪 {manual_savings:,.2f} / {gt:,.2f} € ({(prog*100):.1f}%)")
+        if st.button(f"🗑️ Διαγραφή Στόχου {gn}", key=f"dg_{gid}"):
             c.execute("DELETE FROM goals WHERE id=?", (gid,)); conn.commit(); st.rerun()
 
-# --- 7. ΥΠΟΛΟΙΠΑ (HISTORY & REMINDERS) ---
+# --- 7. ΥΠΟΛΟΙΠΑ (Reminders & History) ---
 elif "🔔" in choice:
     st.header(curr_t["reminders_title"])
     with st.form("rem_f"):
