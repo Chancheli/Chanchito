@@ -66,6 +66,7 @@ def image_to_base64(image):
     image.save(buffered, format="JPEG")
     return base64.b64encode(buffered.getvalue()).decode()
 
+# Load Data
 full_df = pd.read_sql_query("SELECT * FROM entries", conn)
 if not full_df.empty:
     full_df['date_dt'] = pd.to_datetime(full_df['date'])
@@ -85,6 +86,7 @@ if choice == "🏠 Αρχική":
         elif drange == "Τελευταίες 30 μέρες":
             df = df[df['date_dt'] >= (datetime.now() - timedelta(days=30))]
 
+    # METRICS
     if not df.empty:
         t_inc = df[df['type'] == 'Income']['amount'].sum()
         t_exp = df[df['type'] == 'Expense']['amount'].sum()
@@ -94,6 +96,8 @@ if choice == "🏠 Αρχική":
         c3.metric("Υπόλοιπο 🐷", f"{(t_inc - t_exp):,.2f} €")
     
     st.divider()
+    
+    # ALERTS (Missu & Bills)
     col1, col2 = st.columns(2)
     today_s = str(datetime.now().date())
     next_w_s = str(datetime.now().date() + timedelta(days=7))
@@ -105,6 +109,28 @@ if choice == "🏠 Αρχική":
         st.subheader("⚠️ Λήγουν σύντομα:")
         b_urg = c.execute("SELECT title, due_date, amount FROM reminders WHERE due_date >= ? AND due_date <= ?", (today_s, next_w_s)).fetchall()
         for tb, db, ab in b_urg: st.warning(f"🧾 {tb}: {ab}€ ({format_date_str(db)})")
+
+    st.divider()
+    
+    # DEBTS (50/50)
+    if not df.empty:
+        shared = df[df['is_shared'] == 1]
+        ais_p = shared[shared['person'] == 'Άις']['amount'].sum() / 2
+        kon_p = shared[shared['person'] == 'Κωνσταντίνος']['amount'].sum() / 2
+        st.subheader("📊 Εκκρεμότητες 🤝")
+        if ais_p > kon_p: st.info(f"Ο Κωνσταντίνος χρωστάει στην Άις: **{(ais_p - kon_p):.2f} €**")
+        elif kon_p > ais_p: st.info(f"Η Άις χρωστάει στον Κωνσταντίνο: **{(kon_p - ais_p):.2f} €**")
+        else: st.success("✅ Είστε πάτσι! ❤️")
+
+    st.divider()
+    
+    # CHARTS
+    st.subheader("📅 Αναφορά Εξόδων")
+    exp_only = df[df['type'] == 'Expense'] if not df.empty else pd.DataFrame()
+    if not exp_only.empty:
+        exp_only['month_disp'] = exp_only['date_dt'].dt.strftime('%m/%Y')
+        st.table(exp_only.groupby('month_disp')['amount'].sum().reset_index())
+        st.bar_chart(data=exp_only.groupby('category')['amount'].sum())
 
 # --- 2. ΕΣΟΔΑ ---
 elif choice == "💰 Έσοδα":
@@ -118,10 +144,7 @@ elif choice == "💰 Έσοδα":
         if st.form_submit_button("Αποθήκευση ✨"):
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date) VALUES (?,?,?,?,?,?)",
                       ("Income", p, cat, amt, desc, str(d_inc)))
-            conn.commit()
-            st.success("Έσοδο αποθηκεύτηκε!")
-            time.sleep(1)
-            st.rerun()
+            conn.commit(); st.balloons(); st.rerun()
 
 # --- 3. ΕΞΟΔΑ ---
 elif choice == "💸 Έξοδα":
@@ -136,15 +159,11 @@ elif choice == "💸 Έξοδα":
         if st.form_submit_button("Αποθήκευση ✨"):
             img_s = ""
             if up:
-                img = Image.open(up)
-                img.thumbnail((400,400))
+                img = Image.open(up); img.thumbnail((400,400))
                 img_s = image_to_base64(img)
             c.execute("INSERT INTO entries (type, person, category, amount, source_desc, date, receipt, is_shared) VALUES (?,?,?,?,?,?,?,?)",
                       ("Expense", p, cat, amt, desc, str(datetime.now().date()), img_s, 1 if sh else 0))
-            conn.commit()
-            st.success("Έξοδο αποθηκεύτηκε!")
-            time.sleep(1)
-            st.rerun()
+            conn.commit(); st.success("Αποθηκεύτηκε!"); time.sleep(0.5); st.rerun()
 
 # --- 4. ΣΟΥΠΕΡ ΜΑΡΚΕΤ ---
 elif choice == "🛒 Σούπερ Μάρκετ":
@@ -154,93 +173,88 @@ elif choice == "🛒 Σούπερ Μάρκετ":
         st.write("🏬 **Lidl**")
         for i_id, i_n in c.execute("SELECT id, name FROM common_products WHERE store='Lidl'").fetchall():
             if st.button(f"➕ {i_n}", key=f"l_{i_id}"):
-                c.execute("INSERT INTO shopping_list (item, store) VALUES (?,?)", (i_n, "Lidl"))
-                conn.commit()
-                st.rerun()
+                c.execute("INSERT INTO shopping_list (item, store) VALUES (?,?)", (i_n, "Lidl")); conn.commit(); st.rerun()
     with col2:
         st.write("🏬 **Σκλαβενίτης**")
         for i_id, i_n in c.execute("SELECT id, name FROM common_products WHERE store='Σκλαβενίτης'").fetchall():
             if st.button(f"➕ {i_n}", key=f"s_{i_id}"):
-                c.execute("INSERT INTO shopping_list (item, store) VALUES (?,?)", (i_n, "Σκλαβενίτης"))
-                conn.commit()
-                st.rerun()
+                c.execute("INSERT INTO shopping_list (item, store) VALUES (?,?)", (i_n, "Σκλαβενίτης")); conn.commit(); st.rerun()
+    
     st.divider()
+    st.subheader("📝 Τρέχουσα Λίστα")
     for sid, sit, sst, sab in c.execute("SELECT * FROM shopping_list").fetchall():
         c_a, c_b = st.columns([0.8, 0.2])
         c_a.write(f"🛒 {sit} ({sst})")
         if c_b.button("✅", key=f"ds_{sid}"):
-            c.execute("DELETE FROM shopping_list WHERE id=?", (sid,))
-            conn.commit()
-            st.rerun()
+            c.execute("DELETE FROM shopping_list WHERE id=?", (sid,)); conn.commit(); st.rerun()
+    
+    st.divider()
+    with st.expander("✨ Προσθήκη Νέου Προϊόντος στη Βάση"):
+        with st.form("new_p_form"):
+            new_n = st.text_input("Όνομα Προϊόντος")
+            new_s = st.selectbox("Κατάστημα", ["Lidl", "Σκλαβενίτης"])
+            if st.form_submit_button("Προσθήκη στη Λίστα Επιλογών"):
+                c.execute("INSERT INTO common_products (name, store) VALUES (?,?)", (new_n, new_s))
+                conn.commit(); st.success("Προστέθηκε!"); st.rerun()
 
 # --- 5. MISSU CARE ---
 elif choice == "🐾 Missu Care":
     st.header("🐾 Ημερολόγιο Missu")
-    with st.form("missu_form"):
-        act = st.text_input("Ενέργεια")
+    with st.form("m_care_form"):
+        act = st.text_input("Ενέργεια (π.χ. Χάπι, Εμβόλιο)")
         dt = st.date_input("Ημερομηνία", datetime.now())
         nts = st.text_area("Σημειώσεις")
         if st.form_submit_button("Αποθήκευση ✨"):
             c.execute("INSERT INTO missu_care (action, date, notes) VALUES (?,?,?)", (act, str(dt), nts))
-            conn.commit()
-            st.success("Αποθηκεύτηκε!")
-            st.rerun()
+            conn.commit(); st.success("Αποθηκεύτηκε!"); st.rerun()
+    
     for mid, ma, md, mn in c.execute("SELECT * FROM missu_care ORDER BY date DESC").fetchall():
         with st.expander(f"🐾 {format_date_str(md)} - {ma}"):
             st.write(mn)
             if st.button("🗑️ Διαγραφή", key=f"dm_{mid}"):
-                c.execute("DELETE FROM missu_care WHERE id=?", (mid,))
-                conn.commit()
-                st.rerun()
+                c.execute("DELETE FROM missu_care WHERE id=?", (mid,)); conn.commit(); st.rerun()
 
 # --- 6. ΣΤΟΧΟΙ ---
 elif choice == "🎯 Στόχοι":
     st.header("🎯 Στόχοι Αποταμίευσης")
-    with st.form("goal_form"):
-        g_n = st.text_input("Όνομα Στόχου")
-        g_a = st.number_input("Ποσό Στόχου (€)", min_value=0.0)
+    with st.form("g_form"):
+        gn = st.text_input("Όνομα Στόχου")
+        gt = st.number_input("Ποσό Στόχου (€)", min_value=0.0)
         if st.form_submit_button("Αποθήκευση ✨"):
-            c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (g_n, g_a))
-            conn.commit()
-            st.rerun()
+            c.execute("INSERT INTO goals (name, target_amount) VALUES (?,?)", (gn, gt))
+            conn.commit(); st.rerun()
+    
     st.divider()
     manual_savings = full_df[(full_df['type'] == 'Expense') & (full_df['category'] == "🐷 Αποταμίευση")]['amount'].sum() if not full_df.empty else 0
+    st.metric("Συνολική Αποταμίευση στον Κουμπαρά 🐽", f"{manual_savings:,.2f} €")
+
     for gid, gn, gt in c.execute("SELECT * FROM goals").fetchall():
         st.subheader(f"⭐ {gn}")
         prog = min(manual_savings / gt, 1.0) if gt > 0 else 0
+        if prog == 1.0: st.balloons()
         st.progress(prog)
-        st.write(f"💪 {manual_savings:,.2f} / {gt:,.2f} €")
+        st.write(f"💪 {manual_savings:,.2f} / {gt:,.2f} € ({(prog*100):.1f}%)")
         if st.button(f"🗑️ Διαγραφή", key=f"dg_{gid}"):
-            c.execute("DELETE FROM goals WHERE id=?", (gid,))
-            conn.commit()
-            st.rerun()
+            c.execute("DELETE FROM goals WHERE id=?", (gid,)); conn.commit(); st.rerun()
 
 # --- 7. ΥΠΕΝΘΥΜΙΣΕΙΣ ---
 elif choice == "🔔 Υπενθυμίσεις":
     st.header("🔔 Λογαριασμοί & Λήξεις")
     with st.form("rem_form"):
-        t_r = st.text_input("Τίτλος")
-        d_r = st.date_input("Λήξη")
-        a_r = st.number_input("Ποσό", min_value=0.0)
+        tr = st.text_input("Τίτλος"); dr = st.date_input("Λήξη"); ar = st.number_input("Ποσό", min_value=0.0)
         if st.form_submit_button("Αποθήκευση ✨"):
-            c.execute("INSERT INTO reminders (title, due_date, amount) VALUES (?,?,?)", (t_r, str(d_r), a_r))
-            conn.commit()
-            st.rerun()
+            c.execute("INSERT INTO reminders (title, due_date, amount) VALUES (?,?,?)", (tr, str(dr), ar))
+            conn.commit(); st.rerun()
     for rid, rt, rd, ra in c.execute("SELECT * FROM reminders ORDER BY due_date ASC").fetchall():
         st.write(f"📅 {format_date_str(rd)} - **{rt}** ({ra}€)")
-        if st.button("🗑️ Διαγραφή", key=f"dr_{rid}"):
-            c.execute("DELETE FROM reminders WHERE id=?", (rid,))
-            conn.commit()
-            st.rerun()
+        if st.button("🗑️ Διαγραφή", key=f"dr_{rid}"): c.execute("DELETE FROM reminders WHERE id=?", (rid,)); conn.commit(); st.rerun()
 
 # --- 8. ΙΣΤΟΡΙΚΟ ---
 elif choice == "📜 Ιστορικό":
     st.header("📜 Ιστορικό Κινήσεων")
     if not full_df.empty:
         for idx, r in full_df.sort_values('id', ascending=False).iterrows():
-            with st.expander(f"📜 {format_date_str(r['date'])} | {r['amount']}€ | {r['category']}"):
+            with st.expander(f"📜 {format_date_str(r['date'])} | {r['amount']}€ | {r['category']} ({r['person']})"):
                 if r['receipt']: st.image(base64.b64decode(r['receipt']))
                 if st.button("🗑️ Διαγραφή", key=f"h_{r['id']}"):
-                    c.execute("DELETE FROM entries WHERE id=?", (r['id'],))
-                    conn.commit()
-                    st.rerun()
+                    c.execute("DELETE FROM entries WHERE id=?", (r['id'],)); conn.commit(); st.rerun()
